@@ -1,178 +1,251 @@
-<script>
-/* === CONFIG === */
-const SUPABASE_URL = 'https://uqtnllwlyxzfvxukvxrb.supabase.co';          // <— pon aquí tu URL real
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU';// <— y tu anon key real
-const STORAGE_BUCKET = 'fotos';
-
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-/* === ROUTER BÁSICO === */
-window.addEventListener('hashchange', render);
-document.addEventListener('DOMContentLoaded', render);
-
-function render(){
-  const v = document.getElementById('view');
-  const route = (location.hash || '#/cliente').toLowerCase();
-  v.innerHTML = route.startsWith('#/doctor') ? doctorTpl() : clienteTpl();
-}
-
-/* === VISTAS === */
-function clienteTpl(){
-  return `
-    <div class="card">
-      <h2>Consulta de Mascota</h2>
-      <input id="q" placeholder="Nombre de la mascota" onkeydown="if(event.key==='Enter') buscarCliente()">
-      <button class="btn" onclick="buscarCliente()">Buscar</button>
-      <div id="out"></div>
-    </div>
-  `;
-}
-
-function doctorTpl(){
-  return `
-    <div class="card">
-      <h2>Acceso Doctor</h2>
-      <input id="email" placeholder="Email">
-      <input id="pass" placeholder="Contraseña" type="password">
-      <button class="btn" onclick="loginDoctor()">Entrar</button>
-      <div id="loginMsg" class="empty"></div>
-    </div>
-
-    <div id="panel" style="display:none">
-      <div class="card">
-        <h2>Buscar Mascota</h2>
-        <input id="qd" placeholder="Nombre" onkeydown="if(event.key==='Enter') buscarDoctor()">
-        <button class="btn" onclick="buscarDoctor()">Buscar</button>
-        <div id="res"></div>
-      </div>
-
-      <div class="card">
-        <h2>Nuevo Paciente</h2>
-        <div class="grid-3">
-          <input id="nombre" placeholder="Nombre mascota">
-          <input id="raza" placeholder="Raza">
-          <input id="edad" placeholder="Edad">
-          <select id="sexo"><option value="">Sexo</option><option>Macho</option><option>Hembra</option></select>
-          <input id="duenio" placeholder="Dueño">
-          <input id="tel" placeholder="Teléfono">
-          <input id="mail" placeholder="Email">
-        </div>
-        <textarea id="hist" placeholder="Historial médico"></textarea>
-        <input id="foto" type="file" accept="image/*">
-        <button class="btn primary" onclick="guardarDoctor()">Guardar información</button>
-        <div id="saveMsg" class="empty"></div>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Veterinaria - Demo Directo</title>
+  <!-- Supabase JS SDK -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    :root{ --pri:#2c7a7b; --bg:#f7fafc; --card:#ffffff; --txt:#1a202c; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; background:var(--bg); color:var(--txt); font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; }
+    .wrap{ max-width:1000px; margin:0 auto; padding:24px; }
+    .top{ display:flex; justify-content:space-between; align-items:center; }
+    .tab a{ margin-left:10px; text-decoration:none; background:#222; color:#fff; padding:8px 12px; border-radius:10px; display:inline-block; }
+    .card{ background:var(--card); border-radius:14px; padding:20px; box-shadow:0 6px 20px rgba(0,0,0,.06); margin-top:18px; }
+    input,select,textarea{ width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; }
+    textarea{ min-height:110px; }
+    .btn{ background:#222; color:#fff; border:none; border-radius:10px; padding:10px 16px; cursor:pointer; }
+    .btn.primary{ background:var(--pri); }
+    .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+    .row{ display:flex; gap:16px; align-items:flex-start; }
+    .thumb{ width:140px; min-width:140px; height:140px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:10px; overflow:hidden; }
+    .thumb img{ width:100%; height:100%; object-fit:cover; }
+    .empty{ color:#64748b; }
+    @media (max-width:800px){ .grid-3{ grid-template-columns:1fr; } .row{ flex-direction:column; } .thumb{ width:100%; height:180px; } }
+    .note{ font-size:12px; color:#475569; }
+    code.k{ background:#eef2ff; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>Veterinaria - Demo Directo</h1>
+      <div class="tab">
+        <a href="#/cliente">Cliente</a>
+        <a href="#/doctor">Doctor</a>
       </div>
     </div>
-  `;
-}
 
-/* === RENDER DE TARJETA === */
-function renderCard(r){
-  return `
-    <div class="card">
-      <div class="row">
-        <div>
-          <h3>${esc(r.nombre || '')}</h3>
-          <p><b>Raza:</b> ${esc(r.raza || '')} · <b>Edad:</b> ${esc(r.edad ?? '')} · <b>Sexo:</b> ${esc(r.sexo || '')}</p>
-          <p><b>Dueño:</b> ${esc(r.duenio || '')} · <b>Tel:</b> ${esc(r.telefono || '')} · <b>Email:</b> ${esc(r.email || '')}</p>
-          <p><b>Historial:</b> ${esc(r.historial || '')}</p>
-        </div>
-        <div class="thumb">${r.foto_url ? `<img src="${r.foto_url}" alt="foto">` : `<div class="empty">Sin foto</div>`}</div>
-      </div>
-    </div>
-  `;
-}
+    <div id="view"></div>
+  </div>
 
-/* === LÓGICA CLIENTE === */
-async function buscarCliente(){
-  const q = document.getElementById('q').value.trim();
-  const out = document.getElementById('out');
-  out.textContent = 'Buscando...';
-  try{
-    const { data, error } = await supabase
-      .from('mascotas')
-      .select('*')
-      .ilike('nombre', `%${q}%`)
-      .order('created_at', { ascending:false })
-      .limit(5);
-    if (error) throw error;
-    if (!data || !data.length){ out.innerHTML = '<div class="empty">No se encontró registro.</div>'; return; }
-    out.innerHTML = data.map(renderCard).join('');
-  }catch(err){
-    console.error(err);
-    out.innerHTML = `<div class="empty">Error: ${esc(err.message || String(err))}</div>`;
+  <script>
+  /* === CONFIG ===
+     Reemplaza estas dos constantes por tus valores reales de Supabase
+     (Settings → API): */
+  const SUPABASE_URL = 'https://uqtnllwlyxzfvxukvxrb.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU';
+  const STORAGE_BUCKET = 'fotos'; // nombre del bucket de Storage para fotos
+
+  // Helper: pinta un aviso si faltan claves
+  function configWarning(){
+    const v = document.getElementById('view');
+    v.innerHTML = `<div class="card">
+      <h2>Falta configurar Supabase</h2>
+      <p class="note">Edita <code class="k">SUPABASE_URL</code> y <code class="k">SUPABASE_ANON_KEY</code> con tus valores reales y vuelve a desplegar.</p>
+    </div>`;
   }
-}
 
-/* === LÓGICA DOCTOR === */
-async function loginDoctor(){
-  const email = document.getElementById('email').value.trim();
-  const pass  = document.getElementById('pass').value;
-  const msg = document.getElementById('loginMsg');
-  try{
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) throw error;
-    msg.textContent = 'OK';
-    document.getElementById('panel').style.display = '';
-  }catch(err){
-    msg.textContent = 'Error: ' + (err.message || String(err));
+  // Asegura que la SDK de Supabase esté cargada
+  if (!window.supabase){ 
+    document.getElementById('view').innerHTML = '<div class="card"><b>Error:</b> No se pudo cargar la SDK de Supabase.</div>';
   }
-}
 
-async function buscarDoctor(){
-  const q = document.getElementById('qd').value.trim();
-  const res = document.getElementById('res');
-  res.textContent = 'Buscando...';
-  try{
-    const { data, error } = await supabase
-      .from('mascotas').select('*')
-      .ilike('nombre', `%${q}%`)
-      .order('created_at', { ascending:false })
-      .limit(10);
-    if (error) throw error;
-    if (!data.length){ res.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
-    res.innerHTML = data.map(renderCard).join('');
-  }catch(err){
-    res.innerHTML = `<div class="empty">Error: ${esc(err.message || String(err))}</div>`;
-  }
-}
+  // Si no han cambiado los placeholders, muestra aviso amigable
+  const looksLikePlaceholder = (s) => !s || s.includes('TU_SUPABASE_URL') || s.includes('TU_SUPABASE_ANON_KEY');
+  if (looksLikePlaceholder(SUPABASE_URL) || looksLikePlaceholder(SUPABASE_ANON_KEY)){
+    document.addEventListener('DOMContentLoaded', configWarning);
+  } else {
+    // Crear cliente Supabase
+    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function guardarDoctor(){
-  const saveMsg = document.getElementById('saveMsg');
-  saveMsg.textContent = 'Guardando...';
-  try{
-    // Subir foto (opcional)
-    let foto_url = '';
-    const file = document.getElementById('foto').files[0];
-    if (file){
-      const path = `fotos/${Date.now()}_${file.name}`;
-      const up = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
-      if (up.error) throw up.error;
-      const pub = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-      foto_url = pub.data.publicUrl;
+    // Router básico
+    window.addEventListener('hashchange', render);
+    document.addEventListener('DOMContentLoaded', render);
+
+    function render(){
+      let v = document.getElementById('view');
+      if (!v){ // si por alguna razón no existe, créalo
+        const wrap = document.querySelector('.wrap');
+        v = document.createElement('div'); v.id = 'view'; wrap.appendChild(v);
+      }
+      const route = (location.hash || '#/cliente').toLowerCase();
+      v.innerHTML = route.startsWith('#/doctor') ? doctorTpl() : clienteTpl();
     }
-    // Insertar registro
-    const rec = {
-      nombre:  val('nombre'),
-      raza:    val('raza'),
-      edad:    parseInt(val('edad')||'0',10),
-      sexo:    val('sexo'),
-      duenio:  val('duenio'),
-      telefono:val('tel'),
-      email:   val('mail'),
-      historial: val('hist'),
-      foto_url
-    };
-    const { error } = await supabase.from('mascotas').insert(rec);
-    if (error) throw error;
-    saveMsg.textContent = 'Guardado correctamente';
-  }catch(err){
-    saveMsg.textContent = 'Error: ' + (err.message || String(err));
+
+    // Templates
+    function clienteTpl(){
+      return `
+        <div class="card">
+          <h2>Consulta de Mascota</h2>
+          <input id="q" placeholder="Nombre de la mascota" onkeydown="if(event.key==='Enter') buscarCliente()">
+          <button class="btn" onclick="buscarCliente()">Buscar</button>
+          <div id="out"></div>
+        </div>`;
+    }
+
+    function doctorTpl(){
+      return `
+        <div class="card">
+          <h2>Acceso Doctor</h2>
+          <input id="email" placeholder="Email">
+          <input id="pass" placeholder="Contraseña" type="password">
+          <button class="btn" onclick="loginDoctor()">Entrar</button>
+          <div id="loginMsg" class="empty"></div>
+        </div>
+
+        <div id="panel" style="display:none">
+          <div class="card">
+            <h2>Buscar Mascota</h2>
+            <input id="qd" placeholder="Nombre" onkeydown="if(event.key==='Enter') buscarDoctor()">
+            <button class="btn" onclick="buscarDoctor()">Buscar</button>
+            <div id="res"></div>
+          </div>
+
+          <div class="card">
+            <h2>Nuevo Paciente</h2>
+            <div class="grid-3">
+              <input id="nombre" placeholder="Nombre mascota">
+              <input id="raza" placeholder="Raza">
+              <input id="edad" placeholder="Edad">
+              <select id="sexo"><option value="">Sexo</option><option>Macho</option><option>Hembra</option></select>
+              <input id="duenio" placeholder="Dueño">
+              <input id="tel" placeholder="Teléfono">
+              <input id="mail" placeholder="Email">
+            </div>
+            <textarea id="hist" placeholder="Historial médico"></textarea>
+            <input id="foto" type="file" accept="image/*">
+            <button class="btn primary" onclick="guardarDoctor()">Guardar información</button>
+            <div id="saveMsg" class="empty"></div>
+          </div>
+        </div>`;
+    }
+
+    // Render tarjeta
+    function renderCard(r){
+      const esc = (s)=> (s||'').toString().replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+      return `
+        <div class="card">
+          <div class="row">
+            <div>
+              <h3>${esc(r.nombre || '')}</h3>
+              <p><b>Raza:</b> ${esc(r.raza || '')} · <b>Edad:</b> ${esc(r.edad ?? '')} · <b>Sexo:</b> ${esc(r.sexo || '')}</p>
+              <p><b>Dueño:</b> ${esc(r.duenio || '')} · <b>Tel:</b> ${esc(r.telefono || '')} · <b>Email:</b> ${esc(r.email || '')}</p>
+              <p><b>Historial:</b> ${esc(r.historial || '')}</p>
+            </div>
+            <div class="thumb">${r.foto_url ? `<img src="${esc(r.foto_url)}" alt="foto">` : `<div class="empty">Sin foto</div>`}</div>
+          </div>
+        </div>`;
+    }
+
+    // Cliente: buscar
+    async function buscarCliente(){
+      const q = document.getElementById('q').value.trim();
+      const out = document.getElementById('out');
+      out.textContent = 'Buscando...';
+      try{
+        const { data, error } = await supabase
+          .from('mascotas')
+          .select('*')
+          .ilike('nombre', `%${q}%`)
+          .order('created_at', { ascending:false })
+          .limit(5);
+        if (error) throw error;
+        if (!data || !data.length){ out.innerHTML = '<div class="empty">No se encontró registro.</div>'; return; }
+        out.innerHTML = data.map(renderCard).join('');
+      }catch(err){
+        console.error(err);
+        out.innerHTML = `<div class="empty">Error: ${(err && err.message) ? err.message : String(err)}</div>`;
+      }
+    }
+
+    // Doctor: login
+    async function loginDoctor(){
+      const email = document.getElementById('email').value.trim();
+      const pass  = document.getElementById('pass').value;
+      const msg = document.getElementById('loginMsg');
+      try{
+        const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+        if (error) throw error;
+        msg.textContent = 'OK';
+        document.getElementById('panel').style.display = '';
+      }catch(err){
+        msg.textContent = 'Error: ' + (err.message || String(err));
+      }
+    }
+
+    // Doctor: buscar
+    async function buscarDoctor(){
+      const q = document.getElementById('qd').value.trim();
+      const res = document.getElementById('res');
+      res.textContent = 'Buscando...';
+      try{
+        const { data, error } = await supabase
+          .from('mascotas').select('*')
+          .ilike('nombre', `%${q}%`)
+          .order('created_at', { ascending:false })
+          .limit(10);
+        if (error) throw error;
+        if (!data.length){ res.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
+        res.innerHTML = data.map(renderCard).join('');
+      }catch(err){
+        res.innerHTML = `<div class="empty">Error: ${ (err && err.message) ? err.message : String(err) }</div>`;
+      }
+    }
+
+    // Doctor: guardar
+    async function guardarDoctor(){
+      const saveMsg = document.getElementById('saveMsg');
+      saveMsg.textContent = 'Guardando...';
+      try{
+        // Subir foto (opcional)
+        let foto_url = '';
+        const file = document.getElementById('foto').files[0];
+        if (file){
+          const path = `fotos/${Date.now()}_${file.name}`;
+          const up = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
+          if (up.error) throw up.error;
+          const pub = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+          foto_url = pub.data.publicUrl;
+        }
+        // Insertar registro
+        const rec = {
+          nombre:  document.getElementById('nombre').value.trim(),
+          raza:    document.getElementById('raza').value.trim(),
+          edad:    parseInt(document.getElementById('edad').value || '0',10),
+          sexo:    document.getElementById('sexo').value,
+          duenio:  document.getElementById('duenio').value.trim(),
+          telefono:document.getElementById('tel').value.trim(),
+          email:   document.getElementById('mail').value.trim(),
+          historial: document.getElementById('hist').value.trim(),
+          foto_url
+        };
+        const { error } = await supabase.from('mascotas').insert(rec);
+        if (error) throw error;
+        saveMsg.textContent = 'Guardado correctamente';
+      }catch(err){
+        saveMsg.textContent = 'Error: ' + (err.message || String(err));
+      }
+    }
+
+    // Exponer funciones globalmente (necesarias para los onclick del HTML)
+    window.buscarCliente = buscarCliente;
+    window.loginDoctor   = loginDoctor;
+    window.buscarDoctor  = buscarDoctor;
+    window.guardarDoctor = guardarDoctor;
   }
-}
-
-/* === UTILS === */
-function val(id){ return document.getElementById(id).value.trim(); }
-function esc(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-</script>
-
+  </script>
+</body>
+</html>
