@@ -1,122 +1,293 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Veterinaria - Demo Directo</title>
-  <!-- Supabase JS SDK -->
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Tu Veterinaria</title>
+
+  <!-- Fuente limpia -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"/>
+
+  <!-- Supabase SDK -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
   <style>
-    :root{ --pri:#2c7a7b; --bg:#f7fafc; --card:#ffffff; --txt:#1a202c; }
-    *{ box-sizing:border-box; }
-    body{ margin:0; background:var(--bg); color:var(--txt); font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; }
-    .wrap{ max-width:1000px; margin:0 auto; padding:24px; }
-    .top{ display:flex; justify-content:space-between; align-items:center; }
-    .tab a{ margin-left:10px; text-decoration:none; background:#222; color:#fff; padding:8px 12px; border-radius:10px; display:inline-block; }
-    .card{ background:var(--card); border-radius:14px; padding:20px; box-shadow:0 6px 20px rgba(0,0,0,.06); margin-top:18px; }
-    input,select,textarea{ width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; }
-    textarea{ min-height:110px; }
-    .btn{ background:#222; color:#fff; border:none; border-radius:10px; padding:10px 16px; cursor:pointer; }
-    .btn.primary{ background:var(--pri); }
-    .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-    .row{ display:flex; gap:16px; align-items:flex-start; }
-    .thumb{ width:140px; min-width:140px; height:140px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:10px; overflow:hidden; }
-    .thumb img{ width:100%; height:100%; object-fit:cover; }
-    .empty{ color:#64748b; }
-    @media (max-width:800px){ .grid-3{ grid-template-columns:1fr; } .row{ flex-direction:column; } .thumb{ width:100%; height:180px; } }
-    .note{ font-size:12px; color:#475569; }
-    code.k{ background:#eef2ff; padding:2px 6px; border-radius:6px; }
+    :root{
+      --pri:#2c7a7b;        /* verde principal */
+      --pri-600:#276b6c;
+      --sec:#3182ce;        /* azul acento */
+      --bg:#f7fafc;         /* fondo pálido */
+      --txt:#1a202c;        /* texto */
+      --muted:#64748b;      /* texto suave */
+      --card:#ffffff;
+      --ring:rgba(44,122,123,.25);
+    }
+    *{ box-sizing:border-box }
+    html,body{ margin:0; font-family:Poppins,system-ui,Segoe UI,Roboto,Arial,sans-serif; color:var(--txt); background:var(--bg) }
+
+    /* NAVBAR */
+    .nav{
+      position:sticky; top:0; z-index:40;
+      backdrop-filter:saturate(1.2) blur(6px);
+      background:rgba(255,255,255,.85); border-bottom:1px solid #eef2f7;
+    }
+    .container{ max-width:1160px; margin:0 auto; padding:0 20px }
+    .nav-inner{ display:flex; align-items:center; justify-content:space-between; padding:14px 0 }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.3px; }
+    .brand-badge{ width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg,var(--pri),#7dd3fc); display:grid; place-items:center; color:#fff; font-weight:700 }
+    .nav-links a{ text-decoration:none; color:#111; font-weight:600; margin-left:18px }
+    .nav-links a:hover{ color:var(--pri) }
+
+    /* HERO */
+    .hero{
+      background:
+        radial-gradient(1200px 500px at 80% -10%, #c7f9cc33 0%, transparent 60%),
+        radial-gradient(900px 480px at 10% -10%, #bfdbfe4d 0%, transparent 55%),
+        linear-gradient(180deg,#ffffff 0%, #f8fbff 60%, #f7fafc 100%);
+      border-bottom:1px solid #eef2f7;
+    }
+    .hero-inner{ display:grid; grid-template-columns:1.2fr .8fr; gap:40px; align-items:center; padding:64px 0 48px }
+    .hero h1{ font-size:40px; line-height:1.15; margin:0 0 12px }
+    .hero p{ font-size:18px; color:var(--muted); margin:0 0 22px }
+    .cta{ display:flex; gap:12px; flex-wrap:wrap }
+    .btn{
+      border:none; cursor:pointer; font-weight:600; padding:12px 18px; border-radius:12px;
+      background:#111; color:#fff; box-shadow:0 6px 18px rgba(0,0,0,.08);
+      transition:transform .06s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .btn:active{ transform:translateY(1px) }
+    .btn.primary{ background:var(--pri) }
+    .btn.primary:hover{ background:var(--pri-600) }
+    .btn.ghost{ background:#fff; color:#111; border:1px solid #e5e7eb }
+    .hero-card{
+      background:rgba(255,255,255,.7); backdrop-filter:blur(8px);
+      border:1px solid #e7eef7; border-radius:20px; padding:18px;
+      box-shadow:0 20px 60px rgba(44,122,123,.12);
+    }
+    .hero-pets{
+      border-radius:16px; background:#f1f5f9; height:300px; display:grid; place-items:center;
+      color:#8ba3b6; font-weight:600; letter-spacing:.4px;
+    }
+
+    /* SECTION TITLES */
+    .section{ padding:48px 0 }
+    .section h2{ font-size:28px; margin:0 0 10px }
+    .section p.lead{ color:var(--muted); margin:0 0 24px }
+
+    /* GRID CARDS */
+    .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px }
+    .card{ background:var(--card); border-radius:16px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.06); border:1px solid #eef2f7 }
+    .icon-bubble{ width:44px; height:44px; border-radius:12px; display:grid; place-items:center; color:#fff; font-weight:700; background:linear-gradient(135deg,var(--pri),#22d3ee) }
+
+    /* APP SHELL (Cliente / Doctor) */
+    .app-shell{ padding:52px 0 64px; background:linear-gradient(180deg,#f7fafc 0%, #ffffff 55%) }
+    .tabs{ display:flex; gap:10px; margin-bottom:16px }
+    .tab-btn{
+      background:#fff; border:1px solid #e5e7eb; color:#111; border-radius:999px; padding:8px 14px; cursor:pointer; font-weight:600;
+    }
+    .tab-btn.active{ background:var(--pri); color:#fff; border-color:var(--pri) }
+    .app-surface{
+      background:#fff; border-radius:18px; padding:22px; border:1px solid #e7eef7;
+      box-shadow:0 30px 60px rgba(17,24,39,.06);
+    }
+    .inputs input, .inputs select, .inputs textarea{
+      width:100%; padding:12px 14px; border:1px solid #e2e8f0; border-radius:12px; outline:0;
+    }
+    .inputs textarea{ min-height:110px }
+    .inputs{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px }
+    .actions{ margin-top:12px }
+
+    /* RESULTS */
+    .result{ border:1px solid #eef2f7; border-radius:14px; padding:16px; margin-top:14px; }
+    .row{ display:flex; gap:18px; align-items:flex-start }
+    .thumb{ width:140px; min-width:140px; height:140px; display:flex; align-items:center; justify-content:center; background:#f1f5f9; border-radius:12px; overflow:hidden }
+    .thumb img{ width:100%; height:100%; object-fit:cover }
+    .muted{ color:var(--muted) }
+    .empty{ color:var(--muted); padding:10px 0 }
+
+    /* FOOTER */
+    footer{ padding:26px 0; border-top:1px solid #edf2f7; color:#475569; text-align:center }
+
+    /* RESPONSIVE */
+    @media (max-width:980px){
+      .hero-inner{ grid-template-columns:1fr; }
+      .inputs{ grid-template-columns:1fr; }
+      .thumb{ width:100%; height:200px }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <h1>Veterinaria - Demo Directo</h1>
-      <div class="tab">
-        <a href="#/cliente">Cliente</a>
-        <a href="#/doctor">Doctor</a>
+
+  <!-- NAV -->
+  <div class="nav">
+    <div class="container nav-inner">
+      <div class="brand">
+        <div class="brand-badge">🐾</div>
+        <div>Tu&nbsp;Veterinaria</div>
+      </div>
+      <div class="nav-links">
+        <a href="#servicios">Servicios</a>
+        <a href="#app">Accesos</a>
+        <a href="#contacto">Contacto</a>
       </div>
     </div>
-
-    <div id="view"></div>
   </div>
 
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <h1>Salud y bienestar para tus mascotas</h1>
+        <p>Atención profesional, vacunas, estética y urgencias. Consulta el historial de tu mascota o registra nuevos pacientes.</p>
+        <div class="cta">
+          <button class="btn primary" onclick="go('cliente')">Soy cliente</button>
+          <button class="btn ghost"   onclick="go('doctor')">Soy doctor</button>
+        </div>
+      </div>
+      <div class="hero-card">
+        <div class="hero-pets">Imagen / slider (branding)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SERVICIOS -->
+  <section class="section" id="servicios">
+    <div class="container">
+      <h2>Servicios</h2>
+      <p class="lead">Todo lo que tu mascota necesita en un solo lugar.</p>
+      <div class="grid-3">
+        <div class="card">
+          <div class="icon-bubble">💉</div>
+          <h3>Vacunación</h3>
+          <p class="muted">Esquemas completos y recordatorios.</p>
+        </div>
+        <div class="card">
+          <div class="icon-bubble">🩺</div>
+          <h3>Consulta</h3>
+          <p class="muted">Diagnóstico, seguimiento y control.</p>
+        </div>
+        <div class="card">
+          <div class="icon-bubble">✂️</div>
+          <h3>Estética</h3>
+          <p class="muted">Baño, corte y limpieza dental.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- APP (Cliente/Doctor) -->
+  <section class="app-shell" id="app">
+    <div class="container">
+      <div class="tabs">
+        <button id="tab-cliente" class="tab-btn active" onclick="go('cliente')">Cliente</button>
+        <button id="tab-doctor"  class="tab-btn"        onclick="go('doctor')">Doctor</button>
+      </div>
+      <div class="app-surface" id="view"><!-- contenido dinámico --></div>
+    </div>
+  </section>
+
+  <!-- CONTACTO -->
+  <section class="section" id="contacto">
+    <div class="container">
+      <h2>Contacto</h2>
+      <p class="lead">Av. Siempreviva 123 · Lun–Sáb 9:00–19:00 · WhatsApp 81 000 000</p>
+      <div class="card">
+        <div class="muted">Aquí puedes embeber Google Maps o un formulario de contacto.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">© <span id="year"></span> Tu Veterinaria — Todos los derechos reservados</div>
+  </footer>
+
   <script>
-  /* === CONFIG ===
-     Reemplaza estas dos constantes por tus valores reales de Supabase
-     (Settings → API): */
-  const SUPABASE_URL = 'https://uqtnllwlyxzfvxukvxrb.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU';
-  const STORAGE_BUCKET = 'fotos'; // nombre del bucket de Storage para fotos
+    /* ========= CONFIG SUPABASE =========
+       Rellena con tus valores reales (Settings → API) */
+    const SUPABASE_URL = 'https://uqtnllwlyxzfvxukvxrb.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU';
+    const STORAGE_BUCKET = 'fotos'; // o el nombre que creaste
 
-  // Helper: pinta un aviso si faltan claves
-  function configWarning(){
-    const v = document.getElementById('view');
-    v.innerHTML = `<div class="card">
-      <h2>Falta configurar Supabase</h2>
-      <p class="note">Edita <code class="k">SUPABASE_URL</code> y <code class="k">SUPABASE_ANON_KEY</code> con tus valores reales y vuelve a desplegar.</p>
-    </div>`;
-  }
+    // Cliente Supabase
+    const supabase = (!window.supabase || SUPABASE_URL.includes('TU_SUPABASE')) ? null
+      : window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // Asegura que la SDK de Supabase esté cargada
-  if (!window.supabase){ 
-    document.getElementById('view').innerHTML = '<div class="card"><b>Error:</b> No se pudo cargar la SDK de Supabase.</div>';
-  }
+    // Utilidades
+    const esc = (s)=> (s||'').toString().replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    const $  = (id)=> document.getElementById(id);
+    $('year').textContent = new Date().getFullYear();
 
-  // Si no han cambiado los placeholders, muestra aviso amigable
-  const looksLikePlaceholder = (s) => !s || s.includes('TU_SUPABASE_URL') || s.includes('TU_SUPABASE_ANON_KEY');
-  if (looksLikePlaceholder(SUPABASE_URL) || looksLikePlaceholder(SUPABASE_ANON_KEY)){
-    document.addEventListener('DOMContentLoaded', configWarning);
-  } else {
-    // Crear cliente Supabase
-    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Navegación de tabs / hash
+    function go(dest){
+      location.hash = '#/' + dest;
+      const el = document.querySelector('#app'); if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+      render();
+    }
 
-    // Router básico
     window.addEventListener('hashchange', render);
     document.addEventListener('DOMContentLoaded', render);
 
-    function render(){
-      let v = document.getElementById('view');
-      if (!v){ // si por alguna razón no existe, créalo
-        const wrap = document.querySelector('.wrap');
-        v = document.createElement('div'); v.id = 'view'; wrap.appendChild(v);
-      }
-      const route = (location.hash || '#/cliente').toLowerCase();
-      v.innerHTML = route.startsWith('#/doctor') ? doctorTpl() : clienteTpl();
+    function setActiveTab(route){
+      $('tab-cliente').classList.toggle('active', route==='cliente');
+      $('tab-doctor').classList.toggle('active',  route==='doctor');
     }
 
-    // Templates
+    function render(){
+      const route = (location.hash || '#/cliente').replace('#/','').toLowerCase();
+      setActiveTab(route);
+      const v = $('view');
+
+      if (!supabase){
+        v.innerHTML = `
+          <div class="empty">
+            <b>Configurar Supabase:</b> abre este archivo y reemplaza <code>SUPABASE_URL</code> y <code>SUPABASE_ANON_KEY</code>.
+          </div>`;
+        return;
+      }
+
+      if (route === 'doctor') v.innerHTML = doctorTpl();
+      else v.innerHTML = clienteTpl();
+    }
+
+    /* ========= VISTAS ========= */
     function clienteTpl(){
       return `
-        <div class="card">
-          <h2>Consulta de Mascota</h2>
-          <input id="q" placeholder="Nombre de la mascota" onkeydown="if(event.key==='Enter') buscarCliente()">
-          <button class="btn" onclick="buscarCliente()">Buscar</button>
-          <div id="out"></div>
+        <div>
+          <h3 style="margin-top:0">Consulta de Mascota</h3>
+          <div style="display:flex; gap:10px; margin-bottom:10px">
+            <input id="q" placeholder="Nombre de la mascota" style="flex:1; padding:12px 14px; border:1px solid #e2e8f0; border-radius:12px" onkeydown="if(event.key==='Enter') buscarCliente()">
+            <button class="btn" onclick="buscarCliente()">Buscar</button>
+          </div>
+          <div id="out" class="muted">Escribe el nombre y pulsa Buscar</div>
         </div>`;
     }
 
     function doctorTpl(){
       return `
-        <div class="card">
-          <h2>Acceso Doctor</h2>
-          <input id="email" placeholder="Email">
-          <input id="pass" placeholder="Contraseña" type="password">
-          <button class="btn" onclick="loginDoctor()">Entrar</button>
-          <div id="loginMsg" class="empty"></div>
+        <div class="card" style="margin:-10px 0 16px">
+          <h3 style="margin:0 0 8px">Acceso Doctor</h3>
+          <div style="display:flex; gap:10px; flex-wrap:wrap">
+            <input id="email" placeholder="Email" style="flex:1; min-width:240px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:12px">
+            <input id="pass" type="password" placeholder="Contraseña" style="flex:1; min-width:220px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:12px">
+            <button class="btn primary" onclick="loginDoctor()">Entrar</button>
+          </div>
+          <div id="loginMsg" class="muted" style="margin-top:8px"></div>
         </div>
 
         <div id="panel" style="display:none">
           <div class="card">
-            <h2>Buscar Mascota</h2>
-            <input id="qd" placeholder="Nombre" onkeydown="if(event.key==='Enter') buscarDoctor()">
-            <button class="btn" onclick="buscarDoctor()">Buscar</button>
-            <div id="res"></div>
+            <h3 style="margin:0 0 8px">Buscar Mascota</h3>
+            <div style="display:flex; gap:10px; margin-bottom:10px">
+              <input id="qd" placeholder="Nombre" style="flex:1; padding:12px 14px; border:1px solid #e2e8f0; border-radius:12px" onkeydown="if(event.key==='Enter') buscarDoctor()">
+              <button class="btn" onclick="buscarDoctor()">Buscar</button>
+            </div>
+            <div id="res" class="muted">Ingresa un nombre y busca</div>
           </div>
 
-          <div class="card">
-            <h2>Nuevo Paciente</h2>
-            <div class="grid-3">
+          <div class="card" style="margin-top:16px">
+            <h3 style="margin:0 0 12px">Nuevo Paciente</h3>
+            <div class="inputs">
               <input id="nombre" placeholder="Nombre mascota">
               <input id="raza" placeholder="Raza">
               <input id="edad" placeholder="Edad">
@@ -125,35 +296,40 @@
               <input id="tel" placeholder="Teléfono">
               <input id="mail" placeholder="Email">
             </div>
-            <textarea id="hist" placeholder="Historial médico"></textarea>
-            <input id="foto" type="file" accept="image/*">
-            <button class="btn primary" onclick="guardarDoctor()">Guardar información</button>
-            <div id="saveMsg" class="empty"></div>
-          </div>
-        </div>`;
-    }
+            <textarea id="hist" placeholder="Historial médico (resumen)" style="margin-top:12px"></textarea>
 
-    // Render tarjeta
-    function renderCard(r){
-      const esc = (s)=> (s||'').toString().replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
-      return `
-        <div class="card">
-          <div class="row">
-            <div>
-              <h3>${esc(r.nombre || '')}</h3>
-              <p><b>Raza:</b> ${esc(r.raza || '')} · <b>Edad:</b> ${esc(r.edad ?? '')} · <b>Sexo:</b> ${esc(r.sexo || '')}</p>
-              <p><b>Dueño:</b> ${esc(r.duenio || '')} · <b>Tel:</b> ${esc(r.telefono || '')} · <b>Email:</b> ${esc(r.email || '')}</p>
-              <p><b>Historial:</b> ${esc(r.historial || '')}</p>
+            <div style="margin:10px 0">
+              <label class="muted">Foto (opcional): <input id="foto" type="file" accept="image/*"></label>
             </div>
-            <div class="thumb">${r.foto_url ? `<img src="${esc(r.foto_url)}" alt="foto">` : `<div class="empty">Sin foto</div>`}</div>
+
+            <div class="actions">
+              <button class="btn primary" onclick="guardarDoctor()">Guardar información</button>
+              <span id="saveMsg" class="muted" style="margin-left:10px"></span>
+            </div>
           </div>
         </div>`;
     }
 
-    // Cliente: buscar
+    /* ========= RENDER DE RESULTADO ========= */
+    function renderCard(r){
+      return `
+        <div class="result">
+          <div class="row">
+            <div style="flex:1">
+              <h3 style="margin:.2rem 0 6px">${esc(r.nombre||'')}</h3>
+              <p><b>Raza:</b> ${esc(r.raza||'')} · <b>Edad:</b> ${esc(r.edad ?? '')} · <b>Sexo:</b> ${esc(r.sexo||'')}</p>
+              <p><b>Dueño:</b> ${esc(r.duenio||'')} · <b>Tel:</b> ${esc(r.telefono||'')} · <b>Email:</b> ${esc(r.email||'')}</p>
+              <p><b>Historial:</b> ${esc(r.historial||'')}</p>
+            </div>
+            <div class="thumb">${r.foto_url ? `<img src="${esc(r.foto_url)}" alt="foto">` : `<div class="muted">Sin foto</div>`}</div>
+          </div>
+        </div>`;
+    }
+
+    /* ========= LÓGICA: CLIENTE ========= */
     async function buscarCliente(){
-      const q = document.getElementById('q').value.trim();
-      const out = document.getElementById('out');
+      const q = $('q').value.trim();
+      const out = $('out');
       out.textContent = 'Buscando...';
       try{
         const { data, error } = await supabase
@@ -161,114 +337,87 @@
           .select('*')
           .ilike('nombre', `%${q}%`)
           .order('created_at', { ascending:false })
-          .limit(5);
+          .limit(8);
         if (error) throw error;
-        if (!data || !data.length){ out.innerHTML = '<div class="empty">No se encontró registro.</div>'; return; }
-        out.innerHTML = data.map(renderCard).join('');
+        out.innerHTML = (data && data.length) ? data.map(renderCard).join('') : '<div class="empty">No se encontró registro.</div>';
       }catch(err){
-        console.error(err);
-        out.innerHTML = `<div class="empty">Error: ${(err && err.message) ? err.message : String(err)}</div>`;
+        out.innerHTML = `<div class="empty">Error: ${esc(err.message||String(err))}</div>`;
       }
     }
 
-    // Doctor: login
+    /* ========= LÓGICA: DOCTOR ========= */
     async function loginDoctor(){
-      const email = document.getElementById('email').value.trim();
-      const pass  = document.getElementById('pass').value;
-      const msg = document.getElementById('loginMsg');
+      const email = $('email').value.trim();
+      const pass  = $('pass').value;
+      const msg = $('loginMsg');
       try{
         const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
         if (error) throw error;
         msg.textContent = 'OK';
-        document.getElementById('panel').style.display = '';
+        $('panel').style.display = '';
       }catch(err){
         msg.textContent = 'Error: ' + (err.message || String(err));
       }
     }
 
-    // Doctor: buscar
     async function buscarDoctor(){
-      const q = document.getElementById('qd').value.trim();
-      const res = document.getElementById('res');
+      const q = $('qd').value.trim();
+      const res = $('res');
       res.textContent = 'Buscando...';
       try{
         const { data, error } = await supabase
           .from('mascotas').select('*')
           .ilike('nombre', `%${q}%`)
           .order('created_at', { ascending:false })
-          .limit(10);
+          .limit(12);
         if (error) throw error;
-        if (!data.length){ res.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
-        res.innerHTML = data.map(renderCard).join('');
+        res.innerHTML = data.length ? data.map(renderCard).join('') : '<div class="empty">Sin resultados</div>';
       }catch(err){
-        res.innerHTML = `<div class="empty">Error: ${ (err && err.message) ? err.message : String(err) }</div>`;
+        res.innerHTML = `<div class="empty">Error: ${esc(err.message||String(err))}</div>`;
       }
     }
 
-    // Doctor: guardar
-   async function guardarDoctor(){
-  const saveMsg = document.getElementById('saveMsg');
-  saveMsg.textContent = 'Guardando...';
+    async function guardarDoctor(){
+      const saveMsg = $('saveMsg'); saveMsg.textContent = 'Guardando...';
+      try{
+        // Foto opcional
+        let foto_url = '';
+        const file = $('foto').files[0];
+        if (file){
+          const path = `${Date.now()}_${file.name}`;
+          const up = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
+          if (up.error) throw up.error;
+          const pub = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(up.data.path);
+          foto_url = pub.data.publicUrl;
+        }
 
-  try{
-    // 1) Subir foto (opcional)
-    let foto_url = '';
-    const file = document.getElementById('foto').files[0];
+        const rec = {
+          nombre:  $('nombre').value.trim(),
+          raza:    $('raza').value.trim(),
+          edad:    parseInt(($('edad').value||'0'),10),
+          sexo:    $('sexo').value,
+          duenio:  $('duenio').value.trim(),
+          telefono:$('tel').value.trim(),
+          email:   $('mail').value.trim(),
+          historial: $('hist').value.trim(),
+          foto_url
+        };
 
-    if (file){
-      // usa un nombre único
-      const path = `${Date.now()}_${file.name}`;
+        const ins = await supabase.from('mascotas').insert(rec).select().single();
+        if (ins.error) throw ins.error;
 
-      // sube al bucket exacto
-      const { data: upData, error: errUp } =
-        await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
-
-      if (errUp) throw new Error('Upload: ' + errUp.message);
-
-      // usa el path real que regresó el upload
-      const { data: pub } =
-        supabase.storage.from(STORAGE_BUCKET).getPublicUrl(upData.path);
-
-      foto_url = pub.publicUrl || '';
-      if (!foto_url) throw new Error('No se pudo obtener URL pública de la foto');
+        saveMsg.textContent = ins.data.foto_url ? 'Guardado correctamente (con foto).' : 'Guardado correctamente.';
+      }catch(err){
+        saveMsg.textContent = 'Error: ' + (err.message || String(err));
+      }
     }
 
-    // 2) Insertar registro en la tabla
-    const rec = {
-      nombre:  document.getElementById('nombre').value.trim(),
-      raza:    document.getElementById('raza').value.trim(),
-      edad:    parseInt(document.getElementById('edad').value || '0',10),
-      sexo:    document.getElementById('sexo').value,
-      duenio:  document.getElementById('duenio').value.trim(),
-      telefono:document.getElementById('tel').value.trim(),
-      email:   document.getElementById('mail').value.trim(),
-      historial: document.getElementById('hist').value.trim(),
-      foto_url
-    };
-
-    // pide devolver la fila para checar qué guardó
-    const { data: inserted, error: errIns } =
-      await supabase.from('mascotas').insert(rec).select().single();
-
-    if (errIns) throw new Error('Insert: ' + errIns.message);
-
-    // 3) feedback
-    saveMsg.textContent = inserted?.foto_url
-      ? 'Guardado correctamente (con foto).'
-      : 'Guardado correctamente (sin foto).';
-  }catch(err){
-    console.error(err);
-    saveMsg.textContent = 'Error: ' + (err.message || String(err));
-  }
-}
-
-
-    // Exponer funciones globalmente (necesarias para los onclick del HTML)
+    // Exponer para onclick
+    window.go = go;
     window.buscarCliente = buscarCliente;
     window.loginDoctor   = loginDoctor;
     window.buscarDoctor  = buscarDoctor;
     window.guardarDoctor = guardarDoctor;
-  }
   </script>
 </body>
 </html>
