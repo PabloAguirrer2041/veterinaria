@@ -206,39 +206,62 @@
     }
 
     // Doctor: guardar
-    async function guardarDoctor(){
-      const saveMsg = document.getElementById('saveMsg');
-      saveMsg.textContent = 'Guardando...';
-      try{
-        // Subir foto (opcional)
-        let foto_url = '';
-        const file = document.getElementById('foto').files[0];
-        if (file){
-          const path = `fotos/${Date.now()}_${file.name}`;
-          const up = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
-          if (up.error) throw up.error;
-          const pub = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-          foto_url = pub.data.publicUrl;
-        }
-        // Insertar registro
-        const rec = {
-          nombre:  document.getElementById('nombre').value.trim(),
-          raza:    document.getElementById('raza').value.trim(),
-          edad:    parseInt(document.getElementById('edad').value || '0',10),
-          sexo:    document.getElementById('sexo').value,
-          duenio:  document.getElementById('duenio').value.trim(),
-          telefono:document.getElementById('tel').value.trim(),
-          email:   document.getElementById('mail').value.trim(),
-          historial: document.getElementById('hist').value.trim(),
-          foto_url
-        };
-        const { error } = await supabase.from('mascotas').insert(rec);
-        if (error) throw error;
-        saveMsg.textContent = 'Guardado correctamente';
-      }catch(err){
-        saveMsg.textContent = 'Error: ' + (err.message || String(err));
-      }
+   async function guardarDoctor(){
+  const saveMsg = document.getElementById('saveMsg');
+  saveMsg.textContent = 'Guardando...';
+
+  try{
+    // 1) Subir foto (opcional)
+    let foto_url = '';
+    const file = document.getElementById('foto').files[0];
+
+    if (file){
+      // usa un nombre único
+      const path = `${Date.now()}_${file.name}`;
+
+      // sube al bucket exacto
+      const { data: upData, error: errUp } =
+        await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
+
+      if (errUp) throw new Error('Upload: ' + errUp.message);
+
+      // usa el path real que regresó el upload
+      const { data: pub } =
+        supabase.storage.from(STORAGE_BUCKET).getPublicUrl(upData.path);
+
+      foto_url = pub.publicUrl || '';
+      if (!foto_url) throw new Error('No se pudo obtener URL pública de la foto');
     }
+
+    // 2) Insertar registro en la tabla
+    const rec = {
+      nombre:  document.getElementById('nombre').value.trim(),
+      raza:    document.getElementById('raza').value.trim(),
+      edad:    parseInt(document.getElementById('edad').value || '0',10),
+      sexo:    document.getElementById('sexo').value,
+      duenio:  document.getElementById('duenio').value.trim(),
+      telefono:document.getElementById('tel').value.trim(),
+      email:   document.getElementById('mail').value.trim(),
+      historial: document.getElementById('hist').value.trim(),
+      foto_url
+    };
+
+    // pide devolver la fila para checar qué guardó
+    const { data: inserted, error: errIns } =
+      await supabase.from('mascotas').insert(rec).select().single();
+
+    if (errIns) throw new Error('Insert: ' + errIns.message);
+
+    // 3) feedback
+    saveMsg.textContent = inserted?.foto_url
+      ? 'Guardado correctamente (con foto).'
+      : 'Guardado correctamente (sin foto).';
+  }catch(err){
+    console.error(err);
+    saveMsg.textContent = 'Error: ' + (err.message || String(err));
+  }
+}
+
 
     // Exponer funciones globalmente (necesarias para los onclick del HTML)
     window.buscarCliente = buscarCliente;
