@@ -67,20 +67,33 @@ function clienteTpl(){
   </div>`;
 }
 
+<script>
 async function buscarCliente(){
   const q = document.getElementById('q').value.trim();
   const out = document.getElementById('out');
   out.textContent = 'Buscando...';
-  const { data, error } = await supabase
-    .from('mascotas')
-    .select('*')
-    .ilike('nombre', `%${q}%`)
-    .order('created_at', { ascending:false })
-    .limit(5);
-  if (error){ out.innerHTML = `<div class="empty">Error: ${error.message}</div>`; return; }
-  if (!data || !data.length){ out.innerHTML = '<div class="empty">No se encontró registro.</div>'; return; }
-  out.innerHTML = data.map(r => renderCard(r)).join('');
+
+  try {
+    const { data, error } = await supabase
+      .from('mascotas')
+      .select('*')
+      .ilike('nombre', `%${q}%`)
+      .order('created_at', { ascending:false })
+      .limit(5);
+
+    if (error) throw error;
+    if (!data || !data.length){
+      out.innerHTML = '<div class="empty">No se encontró registro.</div>';
+      return;
+    }
+    out.innerHTML = data.map(r => renderCard(r)).join('');
+  } catch (err){
+    console.error('buscarCliente:', err);
+    out.innerHTML = `<div class="empty">Error: ${(err && err.message) ? err.message : String(err)}</div>`;
+  }
 }
+</script>
+
 
 function renderCard(r){
   return `
@@ -142,19 +155,33 @@ async function loginDoctor(){
   document.getElementById('panel').style.display = '';
 }
 
-async function buscarDoctor(){
-  const q = document.getElementById('qd').value.trim();
-  const res = document.getElementById('res');
-  res.textContent = 'Buscando...';
-  const { data, error } = await supabase
-    .from('mascotas').select('*')
-    .ilike('nombre', `%${q}%`)
-    .order('created_at', { ascending:false })
-    .limit(10);
-  if (error){ res.innerHTML = `<div class="empty">Error: ${error.message}</div>`; return; }
-  if (!data.length){ res.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
-  res.innerHTML = data.map(renderCard).join('');
+<script>
+async function buscarCliente(){
+  const q = document.getElementById('q').value.trim();
+  const out = document.getElementById('out');
+  out.textContent = 'Buscando...';
+
+  try {
+    const { data, error } = await supabase
+      .from('mascotas')
+      .select('*')
+      .ilike('nombre', `%${q}%`)
+      .order('created_at', { ascending:false })
+      .limit(5);
+
+    if (error) throw error;
+    if (!data || !data.length){
+      out.innerHTML = '<div class="empty">No se encontró registro.</div>';
+      return;
+    }
+    out.innerHTML = data.map(r => renderCard(r)).join('');
+  } catch (err){
+    console.error('buscarCliente:', err);
+    out.innerHTML = `<div class="empty">Error: ${(err && err.message) ? err.message : String(err)}</div>`;
+  }
 }
+</script>
+
 
 async function guardarDoctor(){
   const saveMsg = document.getElementById('saveMsg');
