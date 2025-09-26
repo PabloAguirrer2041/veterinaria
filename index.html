@@ -41,6 +41,7 @@
 const SUPABASE_URL = 'https://uqtnllwlyxzfvxukvxrb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU';
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const STORAGE_BUCKET = 'fotos';
 
 // Ruteo mínimo con hash
 window.addEventListener('hashchange', render);
@@ -164,10 +165,10 @@ async function guardarDoctor(){
   const file = document.getElementById('foto').files[0];
   if (file){
     const path = `fotos/${Date.now()}_${file.name}`;
-    const { data:up, error:errUp } = await supabase.storage.from('public').upload(path, file);
-    if (errUp){ saveMsg.textContent = 'Error al subir foto: ' + errUp.message; return; }
-    const { data:pub } = supabase.storage.from('public').getPublicUrl(path);
-    foto_url = pub.publicUrl;
+   const { data:up, error:errUp } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
+if (errUp){ saveMsg.textContent = 'Error al subir foto: ' + errUp.message; return; }
+const { data:pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+const foto_url = pub.publicUrl;
   }
 
   const rec = {
