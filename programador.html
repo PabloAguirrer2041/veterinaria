@@ -126,9 +126,9 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script>
     // 🔧 Rellena con tu proyecto
-    const SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
-    const SUPABASE_ANON_KEY = "TU_ANON_PUBLIC_KEY";
-    const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
+    const SUPABASE_ANON_KEY = "process.env.SUPABASE_KEY";
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     const $ = (s)=>document.querySelector(s);
     const logEl = $("#log");
