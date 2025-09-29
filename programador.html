@@ -43,24 +43,19 @@
     .login{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .login input{width:auto}
   </style>
-
-  <!-- Supabase UMD con fallback, ambos DEFER para no bloquear -->
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"
-          onerror="(function(){var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js';s.defer=true;document.head.appendChild(s);}())">
-  </script>
 </head>
 <body>
   <div class="container">
     <div class="topbar">
       <a class="link" href="index.html">← Volver al menú</a>
 
-      <!-- LOGIN como <form> con handlers inline (siempre activos) -->
-      <form id="loginForm" class="login" autocomplete="on" onsubmit="return onLogin(event)">
+      <!-- LOGIN dentro de <form> -->
+      <form id="loginForm" class="login" autocomplete="on">
         <span id="sessionState" class="muted">Sesión: desconectado</span>
         <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username">
         <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
         <button id="btnLogin"  type="submit" class="btn">Iniciar sesión</button>
-        <button id="btnLogout" type="button" class="btn hide" onclick="onLogout()">Cerrar sesión</button>
+        <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
       </form>
     </div>
 
@@ -69,8 +64,8 @@
       <p class="muted" style="margin-top:-4px">Solo doctores autorizados pueden crear o editar registros.</p>
 
       <div class="row" style="margin:8px 0 14px">
-        <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')" onkeydown="if(event.key==='Enter'){event.preventDefault();onSearch();}">
-        <button id="btnSearch" class="btn btn--brand" type="button" onclick="onSearch()">Buscar</button>
+        <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')">
+        <button id="btnSearch" class="btn btn--brand" type="button">Buscar</button>
       </div>
 
       <div class="grid">
@@ -86,9 +81,9 @@
       </div>
 
       <div class="actions">
-        <button id="btnSave"   class="btn btn--brand" type="button" onclick="onSave()"   disabled>Guardar (nuevo)</button>
-        <button id="btnUpdate" class="btn"           type="button" onclick="onUpdate()" disabled>Actualizar</button>
-        <button id="btnDelete" class="btn btn--danger" type="button" onclick="onDelete()" disabled>Eliminar</button>
+        <button id="btnSave"   class="btn btn--brand" type="button" disabled>Guardar (nuevo)</button>
+        <button id="btnUpdate" class="btn" type="button" disabled>Actualizar</button>
+        <button id="btnDelete" class="btn btn--danger" type="button" disabled>Eliminar</button>
       </div>
 
       <div id="log" class="hide"></div>
@@ -98,34 +93,51 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
-  <!-- App: sin dependencias de carga; todo expuesto en global -->
-  <script>
-  (function(){
-    'use strict';
-
+  <!-- App como módulo: import dinámico de supabase con fallback -->
+  <script type="module">
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
     const $ = (s)=>document.querySelector(s);
     const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
-    const uuid = ()=> (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
-                   : (Date.now().toString(36)+Math.random().toString(36).slice(2));
+    const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
 
-    const state = { supa:null, user:null, current:null };
+    let supaMod = null, supa = null, user = null, current = null;
 
-    // ============== UI helpers ==============
+    async function importSupabase(){
+      if (supaMod) return supaMod;
+      try {
+        supaMod = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/+esm');
+      } catch {
+        supaMod = await import('https://unpkg.com/@supabase/supabase-js@2.45.6/+esm');
+      }
+      return supaMod;
+    }
+
+    async function ensureSupa(){
+      if (supa) return supa;
+      const { createClient } = await importSupabase();
+      supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+      });
+      supa.auth.onAuthStateChange(refreshSession);
+      await refreshSession();
+      return supa;
+    }
+
     function setOnline(on){
-      const el = $("#state");
-      el.textContent = on ? "online" : "offline";
-      el.style.background = on ? "#e8fbfb" : "#ffeaea";
-      el.style.color = on ? "#075e59" : "#8b1a1a";
+      const pill = $("#state");
+      pill.textContent = on ? "online" : "offline";
+      pill.style.background = on ? "#e8fbfb" : "#ffeaea";
+      pill.style.color = on ? "#075e59" : "#8b1a1a";
       $("#btnSave").disabled   = !on;
-      $("#btnUpdate").disabled = !on || !state.current;
-      $("#btnDelete").disabled = !on || !state.current;
+      $("#btnUpdate").disabled = !on || !current;
+      $("#btnDelete").disabled = !on || !current;
       $("#docId").disabled  = on;
       $("#docPwd").disabled = on;
     }
-    function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
+
+    function logMsg(m){ const el = $("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
     function fillForm(p){
       $("#f_nombre").value = p?.nombre || "";
       $("#f_raza").value   = p?.raza   || "";
@@ -137,29 +149,13 @@
       $("#f_hist").value   = p?.historial || "";
     }
 
-    // ============== Supabase lazy init ==============
-    async function ensureSupa(){
-      if (state.supa) return state.supa;
-      // Espera hasta 8s a que exista window.supabase (por si el CDN tarda)
-      let t = 0;
-      while (!window.supabase && t++ < 80) await new Promise(r=>setTimeout(r,100));
-      if (!window.supabase) { alert("No se pudo cargar supabase-js."); throw new Error("supabase no disponible"); }
-
-      state.supa = window.supabase.createClient(
-        SUPABASE_URL, SUPABASE_ANON_KEY,
-        { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } }
-      );
-      await refreshSession(); // establece UI
-      return state.supa;
-    }
-
     async function refreshSession(){
-      if (!state.supa) return;
-      const { data:{ session } } = await state.supa.auth.getSession();
-      state.user = session?.user || null;
+      if (!supa) return;
+      const { data:{ session } } = await supa.auth.getSession();
+      user = session?.user || null;
       const sEl = $("#sessionState");
-      if (state.user){
-        sEl.textContent = "Sesión: " + (state.user.email || state.user.id);
+      if (user){
+        sEl.textContent = "Sesión: " + (user.email || user.id);
         $("#btnLogin").classList.add("hide");
         $("#btnLogout").classList.remove("hide");
         setOnline(true);
@@ -171,29 +167,25 @@
       }
     }
 
-    // ============== Exponer handlers globales (inline) ==============
-    window.onLogin = async function(e){
+    async function doLogin(e){
       e.preventDefault();
-      const supa = await ensureSupa();
+      await ensureSupa();
       const id  = $("#docId").value.trim();
       const pwd = $("#docPwd").value;
-      if(!id || !pwd){ alert("Escribe ID y contraseña"); return false; }
+      if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
       const email = idToEmail(id);
       const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
       if (error) alert("Error al iniciar sesión: " + error.message);
       else $("#docPwd").value = "";
-      return false;
-    };
-
-    window.onLogout = async function(){
-      const supa = await ensureSupa();
+    }
+    async function doLogout(){
+      await ensureSupa();
       await supa.auth.signOut();
-      await refreshSession();
-    };
+    }
 
     async function uploadPhoto(file){
       if(!file) return null;
-      const supa = await ensureSupa();
+      await ensureSupa();
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
       const path = `mascotas/${uuid()}.${ext}`;
       const { error } = await supa.storage.from("fotos").upload(path, file, { upsert:false });
@@ -202,9 +194,9 @@
       return data.publicUrl || null;
     }
 
-    window.onSave = async function(){
-      if(!state.user){ alert("Inicia sesión para guardar."); return; }
-      const supa = await ensureSupa();
+    async function saveNew(){
+      if(!user){ alert("Inicia sesión para guardar."); return; }
+      await ensureSupa();
       $("#btnSave").disabled = true;
 
       const file = $("#f_foto")?.files?.[0];
@@ -220,22 +212,22 @@
         email:    $("#f_email").value.trim(),
         historial:$("#f_hist").value.trim(),
         foto_url,
-        owner_id: state.user.id
+        owner_id: user.id
       };
       if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
       const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
       if(error){ logMsg("✖ Insert: " + error.message); }
-      else { logMsg("✅ Guardado ID " + data.id); state.current = { id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
+      else { logMsg("✅ Guardado ID " + data.id); current = { id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
       $("#btnSave").disabled = false;
-    };
+    }
 
-    window.onUpdate = async function(){
-      if(!state.user || !state.current) return;
-      const supa = await ensureSupa();
+    async function updateCurrent(){
+      if(!user || !current) return;
+      await ensureSupa();
       $("#btnUpdate").disabled = true;
 
-      let foto_url = state.current.foto_url || null;
+      let foto_url = current.foto_url || null;
       const file = $("#f_foto")?.files?.[0];
       if (file){ const up = await uploadPhoto(file); if(up) foto_url = up; }
 
@@ -251,28 +243,28 @@
         foto_url
       };
 
-      const { error } = await supa.from("mascotas").update(payload).eq("id", state.current.id);
+      const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
       if(error){ logMsg("✖ Update: " + error.message); }
-      else { logMsg("✅ Actualizado ID " + state.current.id); }
+      else { logMsg("✅ Actualizado ID " + current.id); }
       $("#btnUpdate").disabled = false;
-    };
+    }
 
-    window.onDelete = async function(){
-      if(!state.user || !state.current) return;
-      if(!confirm("¿Eliminar registro ID " + state.current.id + "?")) return;
-      const supa = await ensureSupa();
+    async function deleteCurrent(){
+      if(!user || !current) return;
+      if(!confirm("¿Eliminar registro ID " + current.id + "?")) return;
+      await ensureSupa();
       $("#btnDelete").disabled = true;
-      const { error } = await supa.from("mascotas").delete().eq("id", state.current.id);
+      const { error } = await supa.from("mascotas").delete().eq("id", current.id);
       if(error){ logMsg("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
-      logMsg("🗑️ Eliminado ID " + state.current.id);
-      state.current = null;
+      logMsg("🗑️ Eliminado ID " + current.id);
+      current = null;
       $("#btnUpdate").disabled = true;
       $("#btnDelete").disabled = true;
       $("#results").innerHTML="";
-    };
+    }
 
-    window.onSearch = async function(){
-      const supa = await ensureSupa();
+    async function search(){
+      await ensureSupa();
       const q = $("#q").value.trim();
       const results = $("#results");
       results.innerHTML = "";
@@ -284,9 +276,9 @@
         .order("id",{ascending:false})
         .limit(20);
 
-      const asNumber = Number(q);
-      if (Number.isFinite(asNumber) && String(asNumber) === q){
-        query = query.or(`id.eq.${asNumber},nombre.ilike.%${q}%`);
+      const n = Number(q);
+      if (Number.isFinite(n) && String(n) === q){
+        query = query.or(`id.eq.${n},nombre.ilike.%${q}%`);
       } else {
         query = query.ilike("nombre", `%${q}%`);
       }
@@ -311,20 +303,25 @@
           </div>
         `;
         card.style.cursor = "pointer";
-        card.onclick = ()=>{ state.current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
+        card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
         results.appendChild(card);
       });
-    };
+    }
 
-    // Pie de página + rehidratación de sesión cuando la página vuelve al frente
-    document.addEventListener('DOMContentLoaded', ()=>{
-      $("#y").textContent = new Date().getFullYear();
-      // Si supabase ya cargó, inicializa; si no, se hará al primer click
-      ensureSupa().catch(()=>{});
-    });
+    // ===== Enlaces de eventos (siempre activos) =====
+    document.getElementById("loginForm").addEventListener("submit", doLogin);
+    document.getElementById("btnLogout").addEventListener("click", doLogout);
+    document.getElementById("btnSearch").addEventListener("click", search);
+    document.getElementById("q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
+    document.getElementById("btnSave").addEventListener("click",   saveNew);
+    document.getElementById("btnUpdate").addEventListener("click", updateCurrent);
+    document.getElementById("btnDelete").addEventListener("click", deleteCurrent);
+
+    // Primera carga y rehidratación
+    document.getElementById("y").textContent = new Date().getFullYear();
+    ensureSupa().catch(()=>{ /* si falla el CDN, se reintenta cuando pulses un botón (importSupabase) */ });
     window.addEventListener('pageshow', ()=>{ ensureSupa().catch(()=>{}); });
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) ensureSupa().catch(()=>{}); });
-  })();
   </script>
 </body>
 </html>
