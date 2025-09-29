@@ -109,254 +109,255 @@
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-    // Espera segura a supabase (por si el CDN tarda)
-    function withSupabase(cb){
-      if (window.supabase) return cb();
-      let tries = 0;
-      const iv = setInterval(()=>{
-        if (window.supabase){ clearInterval(iv); cb(); }
-        else if (++tries > 50){ clearInterval(iv); console.error("No se cargó supabase-js"); alert("No se pudo cargar supabase-js."); }
-      }, 100);
-    }
-
     const $ = (s)=>document.querySelector(s);
     const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
 
-    let current = null;
-    let sessionUser = null;
+    const state = {
+      supa: null,
+      user: null,
+      current: null,
+      boundAuth: false,
+    };
 
+    // ------------- helpers de UI -------------
     function setOnline(on){
       const stateEl = $("#state");
       stateEl.textContent = on ? "online" : "offline";
       stateEl.style.background = on ? "#e8fbfb" : "#ffeaea";
       stateEl.style.color = on ? "#075e59" : "#8b1a1a";
       $("#btnSave").disabled   = !on;
-      $("#btnUpdate").disabled = !on || !current;
-      $("#btnDelete").disabled = !on || !current;
+      $("#btnUpdate").disabled = !on || !state.current;
+      $("#btnDelete").disabled = !on || !state.current;
       $("#docId").disabled  = on;
       $("#docPwd").disabled = on;
     }
-
-    function logMsg(msg){
-      const logEl = $("#log");
-      logEl.classList.remove("hide");
-      logEl.textContent += msg + "\n";
-      logEl.scrollTop = logEl.scrollHeight;
+    function logMsg(m){
+      const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop=el.scrollHeight;
     }
-
     function fillForm(p){
-      $("#f_nombre").value = p.nombre||"";
-      $("#f_raza").value   = p.raza||"";
-      $("#f_edad").value   = p.edad||"";
-      $("#f_sexo").value   = p.sexo||"";
-      $("#f_duenio").value = p.duenio||"";
-      $("#f_tel").value    = p.telefono||"";
-      $("#f_email").value  = p.email||"";
-      $("#f_hist").value   = p.historial||"";
+      $("#f_nombre").value = p?.nombre || "";
+      $("#f_raza").value   = p?.raza   || "";
+      $("#f_edad").value   = p?.edad   ?? "";
+      $("#f_sexo").value   = p?.sexo   || "";
+      $("#f_duenio").value = p?.duenio || "";
+      $("#f_tel").value    = p?.telefono || "";
+      $("#f_email").value  = p?.email    || "";
+      $("#f_hist").value   = p?.historial|| "";
     }
 
-    function initApp(){
-      // Reutiliza un cliente único entre navegaciones (BFCache)
-      const supa = window.__supa || (window.__supa = window.supabase.createClient(
+    // ------------- Supabase: init perezoso -------------
+    async function ensureSupa(){
+      if (state.supa) return state.supa;
+
+      // espera a que el UMD exista
+      let tries = 0;
+      while (!window.supabase && tries++ < 60) {
+        await new Promise(r=>setTimeout(r,100));
+      }
+      if (!window.supabase) {
+        alert("No se pudo cargar supabase-js.");
+        throw new Error("supabase-js no disponible");
+      }
+
+      state.supa = window.supabase.createClient(
         SUPABASE_URL, SUPABASE_ANON_KEY,
         { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
-      ));
+      );
 
-      async function refreshSession(){
-        const { data:{ session } } = await supa.auth.getSession();
-        sessionUser = session?.user || null;
-        const sessionEl = $("#sessionState");
-        if (sessionUser){
-          sessionEl.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
-          $("#btnLogin").classList.add("hide");
-          $("#btnLogout").classList.remove("hide");
-          setOnline(true);
-        } else {
-          sessionEl.textContent = "Sesión: desconectado";
-          $("#btnLogin").classList.remove("hide");
-          $("#btnLogout").classList.add("hide");
-          setOnline(false);
-        }
+      // suscripción de sesión (solo 1 vez)
+      if (!state.boundAuth) {
+        state.supa.auth.onAuthStateChange(refreshSession);
+        state.boundAuth = true;
+      }
+      await refreshSession();
+      return state.supa;
+    }
+
+    // ------------- sesión -------------
+    async function refreshSession(){
+      if (!state.supa) return;
+      const { data:{ session } } = await state.supa.auth.getSession();
+      state.user = session?.user || null;
+      const sessionEl = $("#sessionState");
+      if (state.user){
+        sessionEl.textContent = "Sesión: " + (state.user.email || state.user.id);
+        $("#btnLogin").classList.add("hide");
+        $("#btnLogout").classList.remove("hide");
+        setOnline(true);
+      } else {
+        sessionEl.textContent = "Sesión: desconectado";
+        $("#btnLogin").classList.remove("hide");
+        $("#btnLogout").classList.add("hide");
+        setOnline(false);
+      }
+    }
+
+    // ------------- acciones -------------
+    async function doLogin(){
+      const supa = await ensureSupa();
+      const id  = $("#docId").value.trim();
+      const pwd = $("#docPwd").value;
+      if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
+      const email = idToEmail(id);
+      const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
+      if (error) alert("Error al iniciar sesión: " + error.message);
+      else $("#docPwd").value = "";
+    }
+    async function doLogout(){
+      const supa = await ensureSupa();
+      await supa.auth.signOut();
+    }
+
+    async function uploadPhoto(file){
+      if(!file) return null;
+      const supa = await ensureSupa();
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `mascotas/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supa.storage.from("fotos").upload(path, file, { upsert:false });
+      if(error){ logMsg("⚠️ Upload: " + error.message); return null; }
+      const { data } = supa.storage.from("fotos").getPublicUrl(path);
+      return data.publicUrl || null;
+    }
+
+    async function saveNew(){
+      if(!state.user){ alert("Inicia sesión para guardar."); return; }
+      const supa = await ensureSupa();
+      $("#btnSave").disabled = true;
+
+      const file = $("#f_foto")?.files?.[0];
+      const foto_url = file ? await uploadPhoto(file) : null;
+
+      const payload = {
+        nombre:   $("#f_nombre").value.trim(),
+        raza:     $("#f_raza").value.trim(),
+        edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
+        sexo:     $("#f_sexo").value,
+        duenio:   $("#f_duenio").value.trim(),
+        telefono: $("#f_tel").value.trim(),
+        email:    $("#f_email").value.trim(),
+        historial:$("#f_hist").value.trim(),
+        foto_url,
+        owner_id: state.user.id
+      };
+      if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
+
+      const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
+      if(error){ logMsg("✖ Insert: " + error.message); }
+      else { logMsg("✅ Guardado ID " + data.id); state.current = { id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
+      $("#btnSave").disabled = false;
+    }
+
+    async function updateCurrent(){
+      if(!state.user || !state.current) return;
+      const supa = await ensureSupa();
+      $("#btnUpdate").disabled = true;
+
+      let foto_url = state.current.foto_url || null;
+      const file = $("#f_foto")?.files?.[0];
+      if (file){ const up = await uploadPhoto(file); if(up) foto_url = up; }
+
+      const payload = {
+        nombre:   $("#f_nombre").value.trim(),
+        raza:     $("#f_raza").value.trim(),
+        edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
+        sexo:     $("#f_sexo").value,
+        duenio:   $("#f_duenio").value.trim(),
+        telefono: $("#f_tel").value.trim(),
+        email:    $("#f_email").value.trim(),
+        historial:$("#f_hist").value.trim(),
+        foto_url
+      };
+
+      const { error } = await supa.from("mascotas").update(payload).eq("id", state.current.id);
+      if(error){ logMsg("✖ Update: " + error.message); }
+      else { logMsg("✅ Actualizado ID " + state.current.id); }
+      $("#btnUpdate").disabled = false;
+    }
+
+    async function deleteCurrent(){
+      if(!state.user || !state.current) return;
+      if(!confirm("¿Eliminar registro ID " + state.current.id + "?")) return;
+      const supa = await ensureSupa();
+      $("#btnDelete").disabled = true;
+      const { error } = await supa.from("mascotas").delete().eq("id", state.current.id);
+      if(error){ logMsg("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
+      logMsg("🗑️ Eliminado ID " + state.current.id);
+      state.current = null;
+      $("#btnUpdate").disabled = true;
+      $("#btnDelete").disabled = true;
+      $("#results").innerHTML="";
+    }
+
+    async function search(){
+      const supa = await ensureSupa();
+      const q = $("#q").value.trim();
+      const results = $("#results");
+      results.innerHTML = "";
+      if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
+
+      let query = supa
+        .from("mascotas")
+        .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
+        .order("id",{ascending:false})
+        .limit(20);
+
+      const asNumber = Number(q);
+      if (Number.isFinite(asNumber) && String(asNumber) === q){
+        query = query.or(`id.eq.${asNumber},nombre.ilike.%${q}%`);
+      } else {
+        query = query.ilike("nombre", `%${q}%`);
       }
 
-      async function uploadPhoto(file){
-        if(!file) return null;
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-        const path = `mascotas/${crypto.randomUUID()}.${ext}`;
-        const { error: upErr } = await supa.storage.from("fotos").upload(path, file, { upsert: false });
-        if(upErr){ logMsg("⚠️ Upload: " + upErr.message); return null; }
-        const { data } = supa.storage.from("fotos").getPublicUrl(path);
-        return data.publicUrl || null;
-      }
+      const { data, error } = await query;
+      if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+      if(!data || data.length===0){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
 
-      async function saveNew(){
-        if(!sessionUser) return alert("Inicia sesión para guardar.");
-        $("#btnSave").disabled = true;
-
-        const fotoFile = $("#f_foto")?.files?.[0];
-        const foto_url = fotoFile ? await uploadPhoto(fotoFile) : null;
-
-        const payload = {
-          nombre:   $("#f_nombre").value.trim(),
-          raza:     $("#f_raza").value.trim(),
-          edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
-          sexo:     $("#f_sexo").value,
-          duenio:   $("#f_duenio").value.trim(),
-          telefono: $("#f_tel").value.trim(),
-          email:    $("#f_email").value.trim(),
-          historial:$("#f_hist").value.trim(),
-          foto_url,
-          owner_id: sessionUser.id
-        };
-        if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
-
-        const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
-        if(error){ logMsg("✖ Insert: " + error.message); }
-        else { logMsg("✅ Guardado ID " + data.id); current = { id: data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
-        $("#btnSave").disabled = false;
-      }
-
-      async function updateCurrent(){
-        if(!sessionUser || !current) return;
-        $("#btnUpdate").disabled = true;
-
-        let foto_url = current.foto_url || null;
-        const fotoFile = $("#f_foto")?.files?.[0];
-        if(fotoFile){ const up = await uploadPhoto(fotoFile); if(up) foto_url = up; }
-
-        const payload = {
-          nombre:   $("#f_nombre").value.trim(),
-          raza:     $("#f_raza").value.trim(),
-          edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
-          sexo:     $("#f_sexo").value,
-          duenio:   $("#f_duenio").value.trim(),
-          telefono: $("#f_tel").value.trim(),
-          email:    $("#f_email").value.trim(),
-          historial:$("#f_hist").value.trim(),
-          foto_url
-        };
-
-        const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
-        if(error){ logMsg("✖ Update: " + error.message); }
-        else { logMsg("✅ Actualizado ID " + current.id); }
-        $("#btnUpdate").disabled = false;
-      }
-
-      async function deleteCurrent(){
-        if(!sessionUser || !current) return;
-        if(!confirm("¿Eliminar registro ID " + current.id + "?")) return;
-        $("#btnDelete").disabled = true;
-        const { error } = await supa.from("mascotas").delete().eq("id", current.id);
-        if(error){ logMsg("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
-        logMsg("🗑️ Eliminado ID " + current.id);
-        current = null;
-        $("#btnUpdate").disabled = true;
-        $("#btnDelete").disabled = true;
-        $("#results").innerHTML="";
-      }
-
-      async function search(){
-        const q = $("#q").value.trim();
-        const results = $("#results");
-        results.innerHTML = "";
-        if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
-
-        let query = supa
-          .from("mascotas")
-          .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
-          .order("id",{ascending:false})
-          .limit(20);
-
-        const asNumber = Number(q);
-        if (Number.isFinite(asNumber) && String(asNumber) === q){
-          query = query.or(`id.eq.${asNumber},nombre.ilike.%${q}%`);
-        } else {
-          query = query.ilike("nombre", `%${q}%`);
-        }
-
-        const { data, error } = await query;
-        if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
-        if(!data || data.length===0){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
-
-        data.forEach(p=>{
-          const card = document.createElement("div");
-          card.className = "item";
-          const foto = p.foto_url || "img/perrito.jpg";
-          card.innerHTML = `
-            <img src="${foto}" alt="${p.nombre}">
-            <div>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                <strong>${p.nombre}</strong>
-                <span class="pill">ID: ${p.id}</span>
-                <span class="muted">${p.raza || ""} ${p.sexo?(" · "+p.sexo):""}</span>
-              </div>
-              <div class="muted">Dueño: ${p.duenio || "—"}</div>
+      data.forEach(p=>{
+        const card = document.createElement("div");
+        card.className = "item";
+        const foto = p.foto_url || "img/perrito.jpg";
+        card.innerHTML = `
+          <img src="${foto}" alt="${p.nombre}">
+          <div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <strong>${p.nombre}</strong>
+              <span class="pill">ID: ${p.id}</span>
+              <span class="muted">${p.raza || ""} ${p.sexo?(" · "+p.sexo):""}</span>
             </div>
-          `;
-          card.style.cursor = "pointer";
-          card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
-          results.appendChild(card);
-        });
-      }
+            <div class="muted">Dueño: ${p.duenio || "—"}</div>
+          </div>
+        `;
+        card.style.cursor = "pointer";
+        card.onclick = ()=>{ state.current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
+        results.appendChild(card);
+      });
+    }
 
-      // ====== Enlaces de eventos (solo una vez por sesión de página) ======
-      if (!window.__progBound){
-        window.__progBound = true;
-
-        // Submit del login (Enter o botón)
-        document.addEventListener("submit", (ev)=>{
-          if (ev.target && ev.target.id === "loginForm") {
-            ev.preventDefault();
-            const id  = $("#docId").value.trim();
-            const pwd = $("#docPwd").value;
-            if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
-            const email = idToEmail(id);
-            window.__supa.auth.signInWithPassword({ email, password: pwd })
-              .then(({error})=>{
-                if(error) alert("Error al iniciar sesión: " + error.message);
-                else $("#docPwd").value = "";
-              });
-          }
-        });
-
-        // Clicks
-        document.addEventListener("click", (ev)=>{
-          const btn = ev.target.closest("button");
-          if (!btn) return;
-          switch (btn.id) {
-            case "btnLogout": window.__supa.auth.signOut(); break;
-            case "btnSave":   saveNew();    break;
-            case "btnUpdate": updateCurrent(); break;
-            case "btnDelete": deleteCurrent(); break;
-            case "btnSearch": search(); break;
-          }
-        });
-
-        // Enter en el buscador
-        document.addEventListener("keydown", (e)=>{
-          if (e.key === "Enter" && e.target && e.target.id === "q"){
-            e.preventDefault();
-            search();
-          }
-        });
-
-        // Cambios de sesión
-        window.__supa.auth.onAuthStateChange(()=>refreshSession());
-      }
-
-      // Boot UI
+    // ---------- Enlaces de eventos (siempre se atan, no dependen de Supabase) ----------
+    document.addEventListener("DOMContentLoaded", ()=>{
       document.getElementById("y").textContent = new Date().getFullYear();
-      refreshSession();
-    } // initApp
 
-    function boot(){ withSupabase(initApp); }
+      // submit login
+      document.getElementById("loginForm").addEventListener("submit", (e)=>{
+        e.preventDefault(); doLogin();
+      });
+      // logout
+      document.getElementById("btnLogout").addEventListener("click", doLogout);
+      // acciones
+      document.getElementById("btnSave").addEventListener("click",   saveNew);
+      document.getElementById("btnUpdate").addEventListener("click", updateCurrent);
+      document.getElementById("btnDelete").addEventListener("click", deleteCurrent);
+      document.getElementById("btnSearch").addEventListener("click", search);
+      document.getElementById("q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
 
-    // Arranque + rehidratación
-    if (document.readyState !== 'loading') boot();
-    else document.addEventListener('DOMContentLoaded', boot);
+      // primera carga de sesión (si el SDK ya está, se resuelve al tiro; si no, en cuanto esté)
+      ensureSupa().catch(()=>{ /* ya se notificó */ });
+    });
 
-    window.addEventListener('pageshow', boot);                    // BFCache
-    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) boot(); });
+    // Rehidratación al volver / ganar foco
+    window.addEventListener('pageshow', ()=>{ ensureSupa().catch(()=>{}); });
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) ensureSupa().catch(()=>{}); });
+
   })();
   </script>
 </body>
