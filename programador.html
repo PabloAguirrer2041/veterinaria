@@ -50,13 +50,16 @@
       <a class="link" href="index.html">← Volver al menú</a>
 
       <!-- LOGIN dentro de <form> -->
-      <form id="loginForm" class="login" autocomplete="on">
-        <span id="sessionState" class="muted">Sesión: desconectado</span>
-        <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username">
-        <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
-        <button id="btnLogin"  type="submit" class="btn">Iniciar sesión</button>
-        <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
-      </form>
+      <form id="loginForm" class="login" autocomplete="off">
+  <span id="sessionState" class="muted">Sesión: desconectado</span>
+  <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)"
+         autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <input id="docPwd" name="password" type="password" placeholder="Contraseña"
+         autocomplete="current-password">
+  <button id="btnLogin"  type="submit" class="btn">Iniciar sesión</button>
+  <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
+</form>
+
     </div>
 
     <div class="card">
@@ -167,17 +170,35 @@
       }
     }
 
-    async function doLogin(e){
-      e.preventDefault();
-      await ensureSupa();
-      const id  = $("#docId").value.trim();
-      const pwd = $("#docPwd").value;
-      if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
-      const email = idToEmail(id);
-      const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
-      if (error) alert("Error al iniciar sesión: " + error.message);
-      else $("#docPwd").value = "";
-    }
+    aasync function doLogin(e){
+  e.preventDefault();
+  await ensureSupa();
+
+  // Leer SIEMPRE desde el submit (evita el bug del autofill = "")
+  const fd  = new FormData(e.target);            // e.target === <form>
+  const raw = (fd.get('username') || '').toString().trim();
+  const pwd = (fd.get('password') || '').toString();
+
+  if (!raw || !pwd) {
+    alert('Escribe ID y contraseña'); 
+    return;
+  }
+
+  const email = `${raw.toLowerCase()}@doctores.local`;
+  const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
+
+  if (error) {
+    // aquí verás "Invalid login credentials" si el usuario/clave no existen
+    console.error('Supabase login error:', error);
+    alert(`Error al iniciar sesión: ${error.message}`);
+    return;
+  }
+
+  // limpia el campo solo si el login fue ok
+  const pwdInput = document.getElementById('docPwd');
+  if (pwdInput) pwdInput.value = '';
+}
+
     async function doLogout(){
       await ensureSupa();
       await supa.auth.signOut();
