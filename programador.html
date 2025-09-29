@@ -64,7 +64,6 @@
       <div class="row" style="margin:8px 0 14px">
         <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')">
         <button id="btnSearch" class="btn btn--brand">Buscar</button>
-        <button id="btnClear" class="btn">Limpiar</button>
       </div>
 
       <div class="grid">
@@ -115,7 +114,7 @@
       let tries = 0;
       const iv = setInterval(()=>{
         if (window.supabase){ clearInterval(iv); cb(); }
-        else if (++tries > 50){ // ~5s
+        else if (++tries > 50){
           clearInterval(iv);
           console.error("No se cargó supabase-js");
           alert("No se pudo cargar supabase-js (verifica Internet/CSP/CDN).");
@@ -126,19 +125,17 @@
     const $ = (s)=>document.querySelector(s);
     const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
 
-    let current = null;      // mascota seleccionada
-    let sessionUser = null;  // usuario actual
+    let current = null;
+    let sessionUser = null;
 
     function setOnline(on){
       const stateEl = $("#state");
       stateEl.textContent = on ? "online" : "offline";
       stateEl.style.background = on ? "#e8fbfb" : "#ffeaea";
       stateEl.style.color = on ? "#075e59" : "#8b1a1a";
-
       $("#btnSave").disabled   = !on;
       $("#btnUpdate").disabled = !on || !current;
       $("#btnDelete").disabled = !on || !current;
-
       $("#docId").disabled  = on;
       $("#docPwd").disabled = on;
     }
@@ -161,20 +158,7 @@
       $("#f_hist").value   = p.historial||"";
     }
 
-    function clearForm(){
-      ["f_nombre","f_raza","f_edad","f_sexo","f_duenio","f_tel","f_email","f_hist","f_foto"].forEach(id=>{
-        const el = $("#"+id);
-        if (!el) return;
-        if (el.type === "file") el.value = "";
-        else el.value = "";
-      });
-      current = null;
-      $("#btnUpdate").disabled = true;
-      $("#btnDelete").disabled = true;
-    }
-
     function initApp(){
-      // Reutiliza un único cliente global
       const supa = window.__supa || (window.__supa = window.supabase.createClient(
         SUPABASE_URL, SUPABASE_ANON_KEY,
         { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
@@ -184,7 +168,6 @@
         try{
           const { data:{ session } } = await supa.auth.getSession();
           sessionUser = session?.user || null;
-
           const sessionEl = $("#sessionState");
           if (sessionUser){
             sessionEl.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
@@ -214,8 +197,9 @@
         if(!sessionUser) return alert("Inicia sesión para guardar.");
         $("#btnSave").disabled = true;
 
-        const fotoFile = $("#f_foto").files[0];
-        const foto_url = await uploadPhoto(fotoFile);
+        const fotoFile = $("#f_foto")?.files?.[0];
+        let foto_url = null;
+        if (fotoFile) foto_url = await uploadPhoto(fotoFile);
 
         const payload = {
           nombre:   $("#f_nombre").value.trim(),
@@ -242,7 +226,7 @@
         $("#btnUpdate").disabled = true;
 
         let foto_url = current.foto_url || null;
-        const fotoFile = $("#f_foto").files[0];
+        const fotoFile = $("#f_foto")?.files?.[0];
         if(fotoFile){ const up = await uploadPhoto(fotoFile); if(up) foto_url = up; }
 
         const payload = {
@@ -270,7 +254,10 @@
         const { error } = await supa.from("mascotas").delete().eq("id", current.id);
         if(error){ showLog("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
         showLog("🗑️ Eliminado ID " + current.id);
-        clearForm(); $("#results").innerHTML=""; $("#btnDelete").disabled=false;
+        current = null;
+        $("#btnUpdate").disabled = true;
+        $("#btnDelete").disabled = true;
+        $("#results").innerHTML="";
       }
 
       async function search(){
@@ -317,9 +304,9 @@
         });
       }
 
-      // Delegación de eventos (una sola vez)
-      if (!window.__appBound){
-        window.__appBound = true;
+      // Delegación de eventos (sin botón limpiar)
+      if (!window.__appBoundNoClear){
+        window.__appBoundNoClear = true;
 
         document.addEventListener("click", (ev)=>{
           const btn = ev.target.closest("button");
@@ -330,25 +317,18 @@
               const pwd = $("#docPwd").value;
               if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
               const email = idToEmail(id);
-              supa.auth.signInWithPassword({ email, password: pwd })
+              window.__supa.auth.signInWithPassword({ email, password: pwd })
                 .then(({error})=>{
                   if(error) alert("Error al iniciar sesión: " + error.message);
                   else $("#docPwd").value = "";
                 });
               break;
             }
-            case "btnLogout":
-              supa.auth.signOut();
-              break;
-            case "btnSave":   saveNew();    break;
-            case "btnUpdate": updateCurrent(); break;
-            case "btnDelete": deleteCurrent(); break;
-            case "btnSearch": search(); break;
-            case "btnClear":
-              clearForm();
-              $("#results").innerHTML = "";
-              const logEl = $("#log"); logEl.textContent = ""; logEl.classList.add("hide");
-              break;
+            case "btnLogout":  window.__supa.auth.signOut(); break;
+            case "btnSave":    saveNew();    break;
+            case "btnUpdate":  updateCurrent(); break;
+            case "btnDelete":  deleteCurrent(); break;
+            case "btnSearch":  search(); break;
           }
         });
 
@@ -359,11 +339,9 @@
           }
         });
 
-        // Suscripción a cambios de sesión (una vez)
-        supa.auth.onAuthStateChange(()=>refreshSession());
+        window.__supa.auth.onAuthStateChange(()=>refreshSession());
       }
 
-      // Primera sincronización + pie de página
       document.getElementById("y").textContent = new Date().getFullYear();
       refreshSession();
     } // initApp
@@ -373,7 +351,7 @@
     if (document.readyState !== 'loading') boot();
     else document.addEventListener('DOMContentLoaded', boot);
 
-    window.addEventListener('pageshow', boot);                 // BFCache
+    window.addEventListener('pageshow', boot);
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) boot(); });
 
   })();
