@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cliente · Buscar mascota</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#f6f9fb; --card:#fff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4;
+      --shadow: 0 10px 30px rgba(16,24,40,.06);
+    }
+    *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .container{max-width:900px;margin:auto;padding:20px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px}
+    h1{margin:0 0 12px}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input[type="search"]{flex:1;min-width:220px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;outline:none}
+    input[type="search"]:focus{border-color:#93d9d7;box-shadow:0 0 0 3px rgba(14,165,160,.15)}
+    .btn{border:1px solid var(--line);background:#fff;padding:12px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn--brand{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn--ghost{background:#fff;color:var(--brand);border-color:var(--brand)}
+    .results{margin-top:16px;display:grid;gap:12px}
+    .pet{display:grid;grid-template-columns:88px 1fr;gap:14px;align-items:center}
+    .pet img{width:88px;height:88px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef4ff;color:#305fbd;font-weight:600;font-size:12px}
+    .guarded{margin-top:8px;padding:10px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;color:#334155}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .link{color:var(--brand);font-weight:700;text-decoration:none}
+    .right{display:flex;gap:8px;align-items:center}
+    .hide{display:none}
+    footer{padding:22px 0;color:#6b7280;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <a class="link" href="index.html">← Volver al menú</a>
+      <div class="right">
+        <span id="sessionState" class="muted">Sesión: visitante</span>
+        <button id="btnLogin" class="btn btn--ghost">Iniciar sesión</button>
+        <button id="btnLogout" class="btn hide">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h1>Buscar mascota</h1>
+      <p class="muted">Escribe el <strong>nombre</strong> o <strong>ID</strong> de la mascota.</p>
+      <div class="row" style="margin-top:8px">
+        <input id="q" type="search" placeholder="Ej. 'Luna' o 'ID 1023'">
+        <button id="btnSearch" class="btn btn--brand">Buscar</button>
+      </div>
+
+      <div id="results" class="results"></div>
+    </div>
+
+    <footer>© <span id="y"></span> TuVet</footer>
+  </div>
+
+  <script>
+    // ======== Sesión (demo en frontend) ========
+    const isLogged = () => localStorage.getItem("tuvet_session")==="ok";
+    const setLogged = (v) => v ? localStorage.setItem("tuvet_session","ok")
+                               : localStorage.removeItem("tuvet_session");
+    const sessionState = document.getElementById("sessionState");
+    const btnLogin = document.getElementById("btnLogin");
+    const btnLogout = document.getElementById("btnLogout");
+    function refreshSessionUI(){
+      if(isLogged()){
+        sessionState.textContent = "Sesión: dueño/a";
+        btnLogin.classList.add("hide");
+        btnLogout.classList.remove("hide");
+      }else{
+        sessionState.textContent = "Sesión: visitante";
+        btnLogin.classList.remove("hide");
+        btnLogout.classList.add("hide");
+      }
+      // Al cambiar sesión, re-renderizamos resultados (para mostrar/ocultar campos)
+      render(currentPets);
+    }
+    btnLogin.onclick = ()=>{ setLogged(true); refreshSessionUI(); };
+    btnLogout.onclick = ()=>{ setLogged(false); refreshSessionUI(); };
+
+    // ======== Búsqueda (reemplaza con tu API) ========
+    async function fetchPet(query){
+      // TODO: reemplaza este mock por tu backend / Sheets / Supabase:
+      //   const res = await fetch(`/api/pets?q=${encodeURIComponent(query)}`);
+      //   return await res.json();
+      const demo = [
+        { id:101, nombre:"Luna", especie:"Perro", raza:"Beagle", sexo:"Hembra",
+          foto:"img/Logo.jpg",
+          owner:{nombre:"Diego Pérez", telefono:"+52 81 0000 0000", direccion:"C. FIME 123, San Nicolás"},
+          salud:{vacunas:"Completo 2025", alergias:"Ninguna", ultimo_check:"2025-08-10"} },
+        { id:102, nombre:"Milo", especie:"Gato", raza:"Criollo", sexo:"Macho",
+          foto:"", owner:{nombre:"—", telefono:"—", direccion:"—"}, salud:{vacunas:"—"} }
+      ];
+      const q = String(query).trim().toLowerCase();
+      if(!q) return [];
+      return demo.filter(p => String(p.id)===q || p.nombre.toLowerCase().includes(q));
+    }
+
+    // ======== Render ========
+    const results = document.getElementById("results");
+    let currentPets = [];
+    function render(items){
+      currentPets = items || [];
+      results.innerHTML = "";
+      if(currentPets.length===0){
+        results.innerHTML = `<div class="muted">Sin resultados.</div>`;
+        return;
+      }
+      currentPets.forEach(p=>{
+        const wrap = document.createElement("div");
+        wrap.className = "card";
+        wrap.innerHTML = `
+          <div class="pet">
+            <img src="${p.foto || 'img/perrito.jpg'}" alt="${p.nombre}">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong>${p.nombre}</strong>
+                <span class="pill">${p.especie}${p.raza?(' · '+p.raza):''}</span>
+                <span class="muted">ID: ${p.id}</span>
+              </div>
+              ${isLogged()? `
+                <div style="margin-top:8px">
+                  <div><strong>Dueño:</strong> ${p.owner?.nombre || '—'}</div>
+                  <div><strong>Teléfono:</strong> ${p.owner?.telefono || '—'}</div>
+                  <div><strong>Dirección:</strong> ${p.owner?.direccion || '—'}</div>
+                  <div class="muted" style="margin-top:6px">
+                    <strong>Salud:</strong> ${p.salud?.vacunas || '—'} · Último check: ${p.salud?.ultimo_check || '—'}
+                  </div>
+                </div>
+              ` : `
+                <div class="guarded">
+                  🔒 Para ver teléfono, dirección, historial y datos sensibles, <button class="btn btn--ghost" id="login-${p.id}">inicia sesión</button>.
+                </div>
+              `}
+            </div>
+          </div>
+        `;
+        results.appendChild(wrap);
+        if(!isLogged()){
+          wrap.querySelector(`#login-${p.id}`)?.addEventListener("click", ()=>{
+            setLogged(true); refreshSessionUI();
+          });
+        }
+      });
+    }
+
+    // ======== UI Handlers ========
+    document.getElementById("btnSearch").onclick = async ()=>{
+      const q = document.getElementById("q").value;
+      const data = await fetchPet(q);
+      render(data);
+    };
+    document.getElementById("q").addEventListener("keydown", e=>{
+      if(e.key==="Enter") document.getElementById("btnSearch").click();
+    });
+
+    // ======== Init ========
+    document.getElementById("y").textContent = new Date().getFullYear();
+    refreshSessionUI();
+  </script>
+</body>
+</html>
