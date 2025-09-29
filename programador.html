@@ -136,7 +136,6 @@
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-    // Cliente
     const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     });
@@ -144,10 +143,10 @@
     // ===== Helpers UI =====
     const $ = (s)=>document.querySelector(s);
     const stateEl = $("#state"), sessionEl = $("#sessionState");
-    const btnLogin = $("#btnLogin"), btnLogout = $("#btnLogout");
-    const btnSave=$("#btnSave"), btnUpdate=$("#btnUpdate"), btnDelete=$("#btnDelete");
-    const results=$("#results"), logEl=$("#log");
-    const idInput=$("#docId"), pwdInput=$("#docPwd");
+    const btnLogin  = $("#btnLogin"), btnLogout = $("#btnLogout");
+    const btnSave   = $("#btnSave"),  btnUpdate = $("#btnUpdate"), btnDelete = $("#btnDelete");
+    const results   = $("#results"),  logEl = $("#log");
+    const idInput   = $("#docId"),    pwdInput = $("#docPwd");
     let sessionUser = null, current = null;
 
     const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
@@ -278,18 +277,26 @@
       clearForm(); results.innerHTML=""; btnDelete.disabled=false;
     }
 
+    // ===== Buscar (nombre o ID) =====
     async function search(){
       const q = $("#q").value.trim();
       results.innerHTML = "";
       if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
 
-      const { data, error } = await supa
-        .from("mascotas")  // RLS decide lo que ves
+      let query = supa
+        .from("mascotas")  // RLS decide lo que ves (si quieres que el doctor vea TODO, policy SELECT = USING (true))
         .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
-        .or(`id.eq.${q},nombre.ilike.%${q}%`)
-        .order("id", { ascending:false })
+        .order("id",{ascending:false})
         .limit(20);
 
+      const asNumber = Number(q);
+      if (Number.isFinite(asNumber) && String(asNumber) === q){
+        query = query.or(`id.eq.${asNumber},nombre.ilike.%${q}%`);
+      } else {
+        query = query.ilike("nombre", `%${q}%`);
+      }
+
+      const { data, error } = await query;
       if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
       if(!data || data.length===0){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
 
