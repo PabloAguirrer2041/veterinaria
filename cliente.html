@@ -60,109 +60,135 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
-  <script>
-    // ======== Sesión (demo en frontend) ========
-    const isLogged = () => localStorage.getItem("tuvet_session")==="ok";
-    const setLogged = (v) => v ? localStorage.setItem("tuvet_session","ok")
-                               : localStorage.removeItem("tuvet_session");
-    const sessionState = document.getElementById("sessionState");
-    const btnLogin = document.getElementById("btnLogin");
-    const btnLogout = document.getElementById("btnLogout");
-    function refreshSessionUI(){
-      if(isLogged()){
-        sessionState.textContent = "Sesión: dueño/a";
-        btnLogin.classList.add("hide");
-        btnLogout.classList.remove("hide");
-      }else{
-        sessionState.textContent = "Sesión: visitante";
-        btnLogin.classList.remove("hide");
-        btnLogout.classList.add("hide");
-      }
-      // Al cambiar sesión, re-renderizamos resultados (para mostrar/ocultar campos)
-      render(currentPets);
-    }
-    btnLogin.onclick = ()=>{ setLogged(true); refreshSessionUI(); };
-    btnLogout.onclick = ()=>{ setLogged(false); refreshSessionUI(); };
+ <script>
+  // ======= UI helpers =======
+  const $ = (s)=>document.querySelector(s);
+  const results = $("#results");
+  const sessionState = $("#sessionState");
+  const btnLogin = $("#btnLogin");
+  const btnLogout = $("#btnLogout");
 
-    // ======== Búsqueda (reemplaza con tu API) ========
-    async function fetchPet(query){
-      // TODO: reemplaza este mock por tu backend / Sheets / Supabase:
-      //   const res = await fetch(`/api/pets?q=${encodeURIComponent(query)}`);
-      //   return await res.json();
-      const demo = [
-        { id:101, nombre:"Luna", especie:"Perro", raza:"Beagle", sexo:"Hembra",
-          foto:"img/Logo.jpg",
-          owner:{nombre:"Diego Pérez", telefono:"+52 81 0000 0000", direccion:"C. FIME 123, San Nicolás"},
-          salud:{vacunas:"Completo 2025", alergias:"Ninguna", ultimo_check:"2025-08-10"} },
-        { id:102, nombre:"Milo", especie:"Gato", raza:"Criollo", sexo:"Macho",
-          foto:"", owner:{nombre:"—", telefono:"—", direccion:"—"}, salud:{vacunas:"—"} }
-      ];
-      const q = String(query).trim().toLowerCase();
-      if(!q) return [];
-      return demo.filter(p => String(p.id)===q || p.nombre.toLowerCase().includes(q));
+  // Render (usa misma tarjeta que ya tenías)
+  function render(items){
+    results.innerHTML = "";
+    if(!items || items.length===0){
+      results.innerHTML = `<div class="muted">Sin resultados.</div>`;
+      return;
     }
+    items.forEach(p=>{
+      const wrap = document.createElement("div");
+      wrap.className = "card";
+      const foto = p.foto_url || "img/perrito.jpg";
+      const publico = !window.__SESSION_OK__ ; // visitante si no hay sesión real
 
-    // ======== Render ========
-    const results = document.getElementById("results");
-    let currentPets = [];
-    function render(items){
-      currentPets = items || [];
-      results.innerHTML = "";
-      if(currentPets.length===0){
-        results.innerHTML = `<div class="muted">Sin resultados.</div>`;
-        return;
-      }
-      currentPets.forEach(p=>{
-        const wrap = document.createElement("div");
-        wrap.className = "card";
-        wrap.innerHTML = `
-          <div class="pet">
-            <img src="${p.foto || 'img/perrito.jpg'}" alt="${p.nombre}">
-            <div>
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                <strong>${p.nombre}</strong>
-                <span class="pill">${p.especie}${p.raza?(' · '+p.raza):''}</span>
-                <span class="muted">ID: ${p.id}</span>
-              </div>
-              ${isLogged()? `
-                <div style="margin-top:8px">
-                  <div><strong>Dueño:</strong> ${p.owner?.nombre || '—'}</div>
-                  <div><strong>Teléfono:</strong> ${p.owner?.telefono || '—'}</div>
-                  <div><strong>Dirección:</strong> ${p.owner?.direccion || '—'}</div>
-                  <div class="muted" style="margin-top:6px">
-                    <strong>Salud:</strong> ${p.salud?.vacunas || '—'} · Último check: ${p.salud?.ultimo_check || '—'}
-                  </div>
-                </div>
-              ` : `
-                <div class="guarded">
-                  🔒 Para ver teléfono, dirección, historial y datos sensibles, <button class="btn btn--ghost" id="login-${p.id}">inicia sesión</button>.
-                </div>
-              `}
+      wrap.innerHTML = `
+        <div class="pet">
+          <img src="${foto}" alt="${p.nombre}">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <strong>${p.nombre}</strong>
+              <span class="pill">${p.especie || ''}${p.raza?(' · '+p.raza):''}</span>
+              <span class="muted">ID: ${p.id}</span>
             </div>
+            ${publico ? `
+              <div class="guarded" style="margin-top:8px">
+                🔒 Datos del dueño e historial ocultos. <button class="btn btn--ghost" id="askLogin-${p.id}">Inicia sesión</button>
+              </div>
+            ` : `
+              <div style="margin-top:8px">
+                <div><strong>Dueño:</strong> ${p.owner_name || '—'}</div>
+                <div><strong>Teléfono:</strong> ${p.owner_phone || '—'}</div>
+                <div><strong>Dirección:</strong> ${p.owner_address || '—'}</div>
+                <div class="muted" style="margin-top:6px">
+                  <strong>Vacunas:</strong> ${p.vacunas || '—'} · Último check: ${p.ultimo_check || '—'}
+                </div>
+              </div>
+            `}
           </div>
-        `;
-        results.appendChild(wrap);
-        if(!isLogged()){
-          wrap.querySelector(`#login-${p.id}`)?.addEventListener("click", ()=>{
-            setLogged(true); refreshSessionUI();
-          });
-        }
-      });
-    }
-
-    // ======== UI Handlers ========
-    document.getElementById("btnSearch").onclick = async ()=>{
-      const q = document.getElementById("q").value;
-      const data = await fetchPet(q);
-      render(data);
-    };
-    document.getElementById("q").addEventListener("keydown", e=>{
-      if(e.key==="Enter") document.getElementById("btnSearch").click();
+        </div>
+      `;
+      results.appendChild(wrap);
+      // botón inline para iniciar sesión
+      wrap.querySelector(`#askLogin-${p.id}`)?.addEventListener("click", doLogin);
     });
+  }
 
-    // ======== Init ========
-    document.getElementById("y").textContent = new Date().getFullYear();
-    refreshSessionUI();
-  </script>
-</body>
-</html>
+  // ======= Supabase Auth =======
+  window.__SESSION_OK__ = false;
+
+  async function refreshSession(){
+    const { data: { session } } = await supa.auth.getSession();
+    window.__SESSION_OK__ = !!session;
+    if (session){
+      sessionState.textContent = "Sesión: dueño/a";
+      btnLogin.classList.add("hide");
+      btnLogout.classList.remove("hide");
+    }else{
+      sessionState.textContent = "Sesión: visitante";
+      btnLogin.classList.remove("hide");
+      btnLogout.classList.add("hide");
+    }
+  }
+
+  // Magic link por email (rápido y sin contraseñas)
+  async function doLogin(){
+    const email = prompt("Escribe tu correo para iniciar sesión (recibirás un enlace):");
+    if(!email) return;
+    const { error } = await supa.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.href } });
+    if(error){ alert("Error al iniciar sesión: " + error.message); return; }
+    alert("Revisa tu correo y abre el enlace para completar el acceso.");
+  }
+
+  async function doLogout(){
+    await supa.auth.signOut();
+  }
+
+  btnLogin.onclick = doLogin;
+  btnLogout.onclick = doLogout;
+
+  supa.auth.onAuthStateChange(async (_evt, _session) => {
+    await refreshSession();
+  });
+
+  // ======= Búsqueda en Supabase =======
+  // Visitante -> vista pública pets_public (solo datos no sensibles)
+  // Logueado  -> tabla pets (RLS: solo sus mascotas)
+  async function fetchPet(query){
+    const q = String(query||"").trim();
+    if(!q) return [];
+
+    if (window.__SESSION_OK__){
+      // Datos completos PERO solo del dueño autenticado (gracias a RLS)
+      const { data, error } = await supa
+        .from('pets')
+        .select('id,nombre,especie,raza,sexo,foto_url,owner_name,owner_phone,owner_address,vacunas,ultimo_check')
+        .or(`id.eq.${q},nombre.ilike.%${q}%`)
+        .limit(20);
+      if(error){ console.error(error); return []; }
+      return data || [];
+    } else {
+      // Visitante: solo vista pública
+      const { data, error } = await supa
+        .from('pets_public')
+        .select('id,nombre,especie,raza,sexo,foto_url')
+        .or(`id.eq.${q},nombre.ilike.%${q}%`)
+        .limit(20);
+      if(error){ console.error(error); return []; }
+      return data || [];
+    }
+  }
+
+  // ======= UI handlers =======
+  $("#btnSearch").onclick = async ()=>{
+    const q = $("#q").value;
+    const data = await fetchPet(q);
+    render(data);
+  };
+  $("#q").addEventListener("keydown", e=>{
+    if(e.key==="Enter") $("#btnSearch").click();
+  });
+
+  // ======= Init =======
+  document.getElementById("y").textContent = new Date().getFullYear();
+  refreshSession();
+</script>
