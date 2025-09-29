@@ -108,7 +108,6 @@
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-    // Espera segura a supabase
     function withSupabase(cb){
       if (window.supabase) return cb();
       let tries = 0;
@@ -133,9 +132,11 @@
       stateEl.textContent = on ? "online" : "offline";
       stateEl.style.background = on ? "#e8fbfb" : "#ffeaea";
       stateEl.style.color = on ? "#075e59" : "#8b1a1a";
+
       $("#btnSave").disabled   = !on;
       $("#btnUpdate").disabled = !on || !current;
       $("#btnDelete").disabled = !on || !current;
+
       $("#docId").disabled  = on;
       $("#docPwd").disabled = on;
     }
@@ -168,6 +169,7 @@
         try{
           const { data:{ session } } = await supa.auth.getSession();
           sessionUser = session?.user || null;
+
           const sessionEl = $("#sessionState");
           if (sessionUser){
             sessionEl.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
@@ -304,7 +306,6 @@
         });
       }
 
-      // Delegación de eventos (sin botón limpiar)
       if (!window.__appBoundNoClear){
         window.__appBoundNoClear = true;
 
