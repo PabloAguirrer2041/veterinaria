@@ -43,283 +43,6 @@
     .login{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .login input{width:auto}
   </style>
-
-  <!-- SDK UMD (defer garantiza que cargue antes del script de app) -->
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
-  <script defer>
-  (function(){
-    'use strict';
-
-    // ===== Config Supabase =====
-    const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
-
-    // Cliente global en window (evita re-creación al volver del BFCache)
-    if (!window.__supa) {
-      if (!window.supabase) { console.error("No se cargó supabase-js"); }
-      window.__supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-      });
-    }
-    const supa = window.__supa;
-
-    // ===== Helpers =====
-    const $ = (s)=>document.querySelector(s);
-    const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
-    let current = null;       // mascota seleccionada
-    let sessionUser = null;   // usuario actual
-
-    function setOnline(on){
-      const stateEl = $("#state");
-      stateEl.textContent = on ? "online" : "offline";
-      stateEl.style.background = on ? "#e8fbfb" : "#ffeaea";
-      stateEl.style.color = on ? "#075e59" : "#8b1a1a";
-
-      const btnSave = $("#btnSave"), btnUpdate = $("#btnUpdate"), btnDelete = $("#btnDelete");
-      if (btnSave) btnSave.disabled = !on;
-      if (btnUpdate) btnUpdate.disabled = !on || !current;
-      if (btnDelete) btnDelete.disabled = !on || !current;
-
-      const idInput = $("#docId"), pwdInput = $("#docPwd");
-      if (idInput) idInput.disabled = on;
-      if (pwdInput) pwdInput.disabled = on;
-    }
-
-    function showLog(m){
-      const logEl = $("#log");
-      if (!logEl) return;
-      logEl.classList.remove("hide");
-      logEl.textContent += m + "\n";
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function fillForm(p){
-      $("#f_nombre").value = p.nombre||"";
-      $("#f_raza").value   = p.raza||"";
-      $("#f_edad").value   = p.edad||"";
-      $("#f_sexo").value   = p.sexo||"";
-      $("#f_duenio").value = p.duenio||"";
-      $("#f_tel").value    = p.telefono||"";
-      $("#f_email").value  = p.email||"";
-      $("#f_hist").value   = p.historial||"";
-    }
-
-    function clearForm(){
-      const ids = ["f_nombre","f_raza","f_edad","f_sexo","f_duenio","f_tel","f_email","f_hist","f_foto"];
-      ids.forEach(id=>{
-        const el = $("#"+id);
-        if (!el) return;
-        if (el.type === "file") el.value = "";
-        else el.value = "";
-      });
-      current = null;
-      const btnUpdate = $("#btnUpdate"), btnDelete = $("#btnDelete");
-      if (btnUpdate) btnUpdate.disabled = true;
-      if (btnDelete) btnDelete.disabled = true;
-    }
-
-    async function refreshSession(){
-      try{
-        const { data:{ session } } = await supa.auth.getSession();
-        sessionUser = session?.user || null;
-
-        const sessionEl = $("#sessionState");
-        const btnLogin  = $("#btnLogin");
-        const btnLogout = $("#btnLogout");
-        if (sessionUser){
-          if (sessionEl) sessionEl.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
-          btnLogin?.classList.add("hide");
-          btnLogout?.classList.remove("hide");
-          setOnline(true);
-        } else {
-          if (sessionEl) sessionEl.textContent = "Sesión: desconectado";
-          btnLogin?.classList.remove("hide");
-          btnLogout?.classList.add("hide");
-          setOnline(false);
-        }
-      }catch(e){
-        console.warn("refreshSession error:", e);
-      }
-    }
-
-    async function uploadPhoto(file){
-      if(!file) return null;
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `mascotas/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supa.storage.from("fotos").upload(path, file, { upsert: false });
-      if(upErr){ showLog("⚠️ Upload: " + upErr.message); return null; }
-      const { data } = supa.storage.from("fotos").getPublicUrl(path);
-      return data.publicUrl || null;
-    }
-
-    async function saveNew(){
-      if(!sessionUser) return alert("Inicia sesión para guardar.");
-      const btnSave = $("#btnSave"); if (btnSave) btnSave.disabled = true;
-
-      const fotoFile = $("#f_foto").files[0];
-      const foto_url = await uploadPhoto(fotoFile);
-
-      const payload = {
-        nombre:   $("#f_nombre").value.trim(),
-        raza:     $("#f_raza").value.trim(),
-        edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
-        sexo:     $("#f_sexo").value,
-        duenio:   $("#f_duenio").value.trim(),
-        telefono: $("#f_tel").value.trim(),
-        email:    $("#f_email").value.trim(),
-        historial:$("#f_hist").value.trim(),
-        foto_url,
-        owner_id: sessionUser.id
-      };
-      if(!payload.nombre){ alert("Nombre es obligatorio"); if(btnSave) btnSave.disabled=false; return; }
-
-      const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
-      if(error){ showLog("✖ Insert: " + error.message); }
-      else { showLog("✅ Guardado ID " + data.id); current = { id: data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
-      if(btnSave) btnSave.disabled = false;
-    }
-
-    async function updateCurrent(){
-      if(!sessionUser || !current) return;
-      const btnUpdate = $("#btnUpdate"); if (btnUpdate) btnUpdate.disabled = true;
-
-      let foto_url = current.foto_url || null;
-      const fotoFile = $("#f_foto").files[0];
-      if(fotoFile){ const up = await uploadPhoto(fotoFile); if(up) foto_url = up; }
-
-      const payload = {
-        nombre:   $("#f_nombre").value.trim(),
-        raza:     $("#f_raza").value.trim(),
-        edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
-        sexo:     $("#f_sexo").value,
-        duenio:   $("#f_duenio").value.trim(),
-        telefono: $("#f_tel").value.trim(),
-        email:    $("#f_email").value.trim(),
-        historial:$("#f_hist").value.trim(),
-        foto_url
-      };
-
-      const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
-      if(error){ showLog("✖ Update: " + error.message); }
-      else { showLog("✅ Actualizado ID " + current.id); }
-      if(btnUpdate) btnUpdate.disabled = false;
-    }
-
-    async function deleteCurrent(){
-      if(!sessionUser || !current) return;
-      if(!confirm("¿Eliminar registro ID " + current.id + "?")) return;
-      const btnDelete = $("#btnDelete"); if (btnDelete) btnDelete.disabled = true;
-
-      const { error } = await supa.from("mascotas").delete().eq("id", current.id);
-      if(error){ showLog("✖ Delete: " + error.message); if(btnDelete) btnDelete.disabled=false; return; }
-      showLog("🗑️ Eliminado ID " + current.id);
-      clearForm(); $("#results").innerHTML=""; if(btnDelete) btnDelete.disabled=false;
-    }
-
-    async function search(){
-      const q = $("#q").value.trim();
-      const results = $("#results");
-      results.innerHTML = "";
-      if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
-
-      let query = supa
-        .from("mascotas")
-        .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
-        .order("id",{ascending:false})
-        .limit(20);
-
-      const asNumber = Number(q);
-      if (Number.isFinite(asNumber) && String(asNumber) === q){
-        query = query.or(`id.eq.${asNumber},nombre.ilike.%${q}%`);
-      } else {
-        query = query.ilike("nombre", `%${q}%`);
-      }
-
-      const { data, error } = await query;
-      if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
-      if(!data || data.length===0){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
-
-      data.forEach(p=>{
-        const card = document.createElement("div");
-        card.className = "item";
-        const foto = p.foto_url || "img/perrito.jpg";
-        card.innerHTML = `
-          <img src="${foto}" alt="${p.nombre}">
-          <div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <strong>${p.nombre}</strong>
-              <span class="pill">ID: ${p.id}</span>
-              <span class="muted">${p.raza || ""} ${p.sexo?(" · "+p.sexo):""}</span>
-            </div>
-            <div class="muted">Dueño: ${p.duenio || "—"}</div>
-          </div>
-        `;
-        card.style.cursor = "pointer";
-        card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
-        results.appendChild(card);
-      });
-    }
-
-    // ===== Delegación de eventos (nunca se rompen los handlers) =====
-    document.addEventListener("click", (ev)=>{
-      const btn = ev.target.closest("button");
-      if (!btn) return;
-      switch (btn.id) {
-        case "btnLogin": {
-          const id  = $("#docId").value.trim();
-          const pwd = $("#docPwd").value;
-          if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
-          const email = idToEmail(id);
-          supa.auth.signInWithPassword({ email, password: pwd })
-            .then(({error})=>{
-              if(error) alert("Error al iniciar sesión: " + error.message);
-              else $("#docPwd").value = "";
-            });
-          break;
-        }
-        case "btnLogout":
-          supa.auth.signOut();
-          break;
-        case "btnSave":
-          saveNew();
-          break;
-        case "btnUpdate":
-          updateCurrent();
-          break;
-        case "btnDelete":
-          deleteCurrent();
-          break;
-        case "btnSearch":
-          search();
-          break;
-        case "btnClear": {
-          clearForm();
-          const results = $("#results"); if (results) results.innerHTML = "";
-          const logEl = $("#log"); if (logEl){ logEl.textContent = ""; logEl.classList.add("hide"); }
-          break;
-        }
-      }
-    });
-
-    // Enter en el buscador (delegado)
-    document.addEventListener("keydown", (e)=>{
-      if (e.key === "Enter" && e.target && e.target.id === "q"){
-        e.preventDefault();
-        search();
-      }
-    });
-
-    // Rehidratación: al volver del menú (BFCache) y al reenfocar
-    window.addEventListener("pageshow", refreshSession);
-    document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) refreshSession(); });
-
-    // Boot
-    document.addEventListener("DOMContentLoaded", ()=>{
-      document.getElementById("y").textContent = new Date().getFullYear();
-      refreshSession();
-    });
-  })();
-  </script>
 </head>
 <body>
   <div class="container">
@@ -369,5 +92,291 @@
 
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
+
+  <!-- Supabase UMD: principal + fallback -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
+  <script>
+    if (!window.supabase) {
+      document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"><\\/script>');
+    }
+  </script>
+
+  <!-- App -->
+  <script>
+  (function(){
+    'use strict';
+
+    const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
+
+    // Espera segura a supabase
+    function withSupabase(cb){
+      if (window.supabase) return cb();
+      let tries = 0;
+      const iv = setInterval(()=>{
+        if (window.supabase){ clearInterval(iv); cb(); }
+        else if (++tries > 50){ // ~5s
+          clearInterval(iv);
+          console.error("No se cargó supabase-js");
+          alert("No se pudo cargar supabase-js (verifica Internet/CSP/CDN).");
+        }
+      }, 100);
+    }
+
+    const $ = (s)=>document.querySelector(s);
+    const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
+
+    let current = null;      // mascota seleccionada
+    let sessionUser = null;  // usuario actual
+
+    function setOnline(on){
+      const stateEl = $("#state");
+      stateEl.textContent = on ? "online" : "offline";
+      stateEl.style.background = on ? "#e8fbfb" : "#ffeaea";
+      stateEl.style.color = on ? "#075e59" : "#8b1a1a";
+
+      $("#btnSave").disabled   = !on;
+      $("#btnUpdate").disabled = !on || !current;
+      $("#btnDelete").disabled = !on || !current;
+
+      $("#docId").disabled  = on;
+      $("#docPwd").disabled = on;
+    }
+
+    function showLog(m){
+      const logEl = $("#log");
+      logEl.classList.remove("hide");
+      logEl.textContent += m + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function fillForm(p){
+      $("#f_nombre").value = p.nombre||"";
+      $("#f_raza").value   = p.raza||"";
+      $("#f_edad").value   = p.edad||"";
+      $("#f_sexo").value   = p.sexo||"";
+      $("#f_duenio").value = p.duenio||"";
+      $("#f_tel").value    = p.telefono||"";
+      $("#f_email").value  = p.email||"";
+      $("#f_hist").value   = p.historial||"";
+    }
+
+    function clearForm(){
+      ["f_nombre","f_raza","f_edad","f_sexo","f_duenio","f_tel","f_email","f_hist","f_foto"].forEach(id=>{
+        const el = $("#"+id);
+        if (!el) return;
+        if (el.type === "file") el.value = "";
+        else el.value = "";
+      });
+      current = null;
+      $("#btnUpdate").disabled = true;
+      $("#btnDelete").disabled = true;
+    }
+
+    function initApp(){
+      // Reutiliza un único cliente global
+      const supa = window.__supa || (window.__supa = window.supabase.createClient(
+        SUPABASE_URL, SUPABASE_ANON_KEY,
+        { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
+      ));
+
+      async function refreshSession(){
+        try{
+          const { data:{ session } } = await supa.auth.getSession();
+          sessionUser = session?.user || null;
+
+          const sessionEl = $("#sessionState");
+          if (sessionUser){
+            sessionEl.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
+            $("#btnLogin").classList.add("hide");
+            $("#btnLogout").classList.remove("hide");
+            setOnline(true);
+          } else {
+            sessionEl.textContent = "Sesión: desconectado";
+            $("#btnLogin").classList.remove("hide");
+            $("#btnLogout").classList.add("hide");
+            setOnline(false);
+          }
+        }catch(e){ console.warn("refreshSession:", e); }
+      }
+
+      async function uploadPhoto(file){
+        if(!file) return null;
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const path = `mascotas/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await supa.storage.from("fotos").upload(path, file, { upsert: false });
+        if(upErr){ showLog("⚠️ Upload: " + upErr.message); return null; }
+        const { data } = supa.storage.from("fotos").getPublicUrl(path);
+        return data.publicUrl || null;
+      }
+
+      async function saveNew(){
+        if(!sessionUser) return alert("Inicia sesión para guardar.");
+        $("#btnSave").disabled = true;
+
+        const fotoFile = $("#f_foto").files[0];
+        const foto_url = await uploadPhoto(fotoFile);
+
+        const payload = {
+          nombre:   $("#f_nombre").value.trim(),
+          raza:     $("#f_raza").value.trim(),
+          edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
+          sexo:     $("#f_sexo").value,
+          duenio:   $("#f_duenio").value.trim(),
+          telefono: $("#f_tel").value.trim(),
+          email:    $("#f_email").value.trim(),
+          historial:$("#f_hist").value.trim(),
+          foto_url,
+          owner_id: sessionUser.id
+        };
+        if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
+
+        const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
+        if(error){ showLog("✖ Insert: " + error.message); }
+        else { showLog("✅ Guardado ID " + data.id); current = { id: data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
+        $("#btnSave").disabled = false;
+      }
+
+      async function updateCurrent(){
+        if(!sessionUser || !current) return;
+        $("#btnUpdate").disabled = true;
+
+        let foto_url = current.foto_url || null;
+        const fotoFile = $("#f_foto").files[0];
+        if(fotoFile){ const up = await uploadPhoto(fotoFile); if(up) foto_url = up; }
+
+        const payload = {
+          nombre:   $("#f_nombre").value.trim(),
+          raza:     $("#f_raza").value.trim(),
+          edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
+          sexo:     $("#f_sexo").value,
+          duenio:   $("#f_duenio").value.trim(),
+          telefono: $("#f_tel").value.trim(),
+          email:    $("#f_email").value.trim(),
+          historial:$("#f_hist").value.trim(),
+          foto_url
+        };
+
+        const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
+        if(error){ showLog("✖ Update: " + error.message); }
+        else { showLog("✅ Actualizado ID " + current.id); }
+        $("#btnUpdate").disabled = false;
+      }
+
+      async function deleteCurrent(){
+        if(!sessionUser || !current) return;
+        if(!confirm("¿Eliminar registro ID " + current.id + "?")) return;
+        $("#btnDelete").disabled = true;
+        const { error } = await supa.from("mascotas").delete().eq("id", current.id);
+        if(error){ showLog("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
+        showLog("🗑️ Eliminado ID " + current.id);
+        clearForm(); $("#results").innerHTML=""; $("#btnDelete").disabled=false;
+      }
+
+      async function search(){
+        const q = $("#q").value.trim();
+        const results = $("#results");
+        results.innerHTML = "";
+        if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
+
+        let query = supa
+          .from("mascotas")
+          .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
+          .order("id",{ascending:false})
+          .limit(20);
+
+        const asNumber = Number(q);
+        if (Number.isFinite(asNumber) && String(asNumber) === q){
+          query = query.or(`id.eq.${asNumber},nombre.ilike.%${q}%`);
+        } else {
+          query = query.ilike("nombre", `%${q}%`);
+        }
+
+        const { data, error } = await query;
+        if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+        if(!data || data.length===0){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
+
+        data.forEach(p=>{
+          const card = document.createElement("div");
+          card.className = "item";
+          const foto = p.foto_url || "img/perrito.jpg";
+          card.innerHTML = `
+            <img src="${foto}" alt="${p.nombre}">
+            <div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <strong>${p.nombre}</strong>
+                <span class="pill">ID: ${p.id}</span>
+                <span class="muted">${p.raza || ""} ${p.sexo?(" · "+p.sexo):""}</span>
+              </div>
+              <div class="muted">Dueño: ${p.duenio || "—"}</div>
+            </div>
+          `;
+          card.style.cursor = "pointer";
+          card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
+          results.appendChild(card);
+        });
+      }
+
+      // Delegación de eventos (una sola vez)
+      if (!window.__appBound){
+        window.__appBound = true;
+
+        document.addEventListener("click", (ev)=>{
+          const btn = ev.target.closest("button");
+          if (!btn) return;
+          switch (btn.id) {
+            case "btnLogin": {
+              const id  = $("#docId").value.trim();
+              const pwd = $("#docPwd").value;
+              if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
+              const email = idToEmail(id);
+              supa.auth.signInWithPassword({ email, password: pwd })
+                .then(({error})=>{
+                  if(error) alert("Error al iniciar sesión: " + error.message);
+                  else $("#docPwd").value = "";
+                });
+              break;
+            }
+            case "btnLogout":
+              supa.auth.signOut();
+              break;
+            case "btnSave":   saveNew();    break;
+            case "btnUpdate": updateCurrent(); break;
+            case "btnDelete": deleteCurrent(); break;
+            case "btnSearch": search(); break;
+            case "btnClear":
+              clearForm();
+              $("#results").innerHTML = "";
+              const logEl = $("#log"); logEl.textContent = ""; logEl.classList.add("hide");
+              break;
+          }
+        });
+
+        document.addEventListener("keydown", (e)=>{
+          if (e.key === "Enter" && e.target && e.target.id === "q"){
+            e.preventDefault();
+            search();
+          }
+        });
+
+        // Suscripción a cambios de sesión (una vez)
+        supa.auth.onAuthStateChange(()=>refreshSession());
+      }
+
+      // Primera sincronización + pie de página
+      document.getElementById("y").textContent = new Date().getFullYear();
+      refreshSession();
+    } // initApp
+
+    function boot(){ withSupabase(initApp); }
+
+    if (document.readyState !== 'loading') boot();
+    else document.addEventListener('DOMContentLoaded', boot);
+
+    window.addEventListener('pageshow', boot);                 // BFCache
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) boot(); });
+
+  })();
+  </script>
 </body>
 </html>
