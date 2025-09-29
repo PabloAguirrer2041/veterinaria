@@ -124,22 +124,30 @@
 
  <!-- SDK UMD de Supabase (debe ir antes de este script) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
-
 <script>
-"use strict";
+  const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";   // tu URL
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU"; // <- tu anon (en UNA línea)
 
-/* ====== CONFIG ====== */
-const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU"; // <- reemplaza
-
-// Cliente con opciones para detectar el token en URL y persistir sesión
-const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+  const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
+  
+<script>
+(async () => {
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/mascotas_public?select=id&limit=1`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    console.log("REST status:", r.status, await r.text());
+    const { data, error } = await supa.from("mascotas_public").select("id").limit(1);
+    console.log("SDK test:", { data, error });
+    if (error) alert("SDK error: " + error.message);
+  } catch (e) {
+    alert("Fetch exception: " + e.message);
+  }
+})();
+</script>
 
 const $ = (s)=>document.querySelector(s);
 const stateEl = $("#state");
