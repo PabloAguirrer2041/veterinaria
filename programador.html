@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Doctor · Registro de mascotas</title>
 
-  <!-- (opcional) ayuda a que el navegador no use copia vieja -->
+  <!-- Evitar cachear copias viejas -->
   <meta http-equiv="Cache-Control" content="no-store, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -46,10 +46,8 @@
     .login input{width:auto}
   </style>
 
-  <!-- 1) Carga local de la librería -->
+  <!-- Carga local de supabase-js; fallback a CDN si falla -->
   <script src="lib/supabase.min.js" defer></script>
-
-  <!-- 2) Fallback a CDN solo si lo local no puso window.supabase -->
   <script>
     window.addEventListener('load', function(){
       if (window.supabase) return;
@@ -59,10 +57,9 @@
       ];
       (function next(i){
         if (window.supabase || i>=cdns.length) return;
-        const s = document.createElement('script');
-        s.src = cdns[i]; s.defer = true;
-        s.onload = ()=>console.log("[supabase] cargado desde CDN");
-        s.onerror = ()=>{ console.warn("[supabase] CDN fallback…"); next(i+1); };
+        const s=document.createElement('script'); s.src=cdns[i]; s.defer=true;
+        s.onload=()=>console.log("[supabase] cargado desde CDN");
+        s.onerror=()=>{ console.warn("[supabase] CDN fallback…"); next(i+1); };
         document.head.appendChild(s);
       })(0);
     });
@@ -74,17 +71,15 @@
       <a class="link" href="index.html">← Volver al menú</a>
       <div class="login" id="loginBox">
         <span id="sessionState" class="muted">Sesión: desconectado</span>
-        <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)"
-               autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input id="docPwd" name="password" type="password" placeholder="Contraseña"
-               autocomplete="current-password">
+        <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
         <button id="btnLogin"  type="button" class="btn">Iniciar sesión</button>
         <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
       </div>
     </div>
 
     <div class="card">
-      <h1>Doctor · Registro de mascotas <span class="pill" id="state">offline</span></h1>
+      <h1>Doctor · Registro de mascotas <span class="pill" id="state">conectando…</span></h1>
       <p class="muted" style="margin-top:-4px">Solo doctores autorizados pueden crear o editar registros.</p>
 
       <div class="row" style="margin:8px 0 14px">
@@ -117,12 +112,16 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
-  <!-- App: todo el JS aquí (igual que tu versión estable) -->
+  <!-- App -->
   <script>
   (function(){
     'use strict';
+
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
+
+    // ponlo en true si NO quieres rehidratación de sesión al abrir/refrescar
+    const FORCE_SIGNOUT_ON_LOAD = false;
 
     const $ = (s)=>document.querySelector(s);
     const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
@@ -130,17 +129,37 @@
 
     let supa=null, user=null, current=null;
 
-    function setOnline(on){
-      const pill=$("#state");
-      pill.textContent = on ? "online" : "offline";
-      pill.style.background = on ? "#e8fbfb" : "#ffeaea";
-      pill.style.color = on ? "#075e59" : "#8b1a1a";
-      $("#btnSave").disabled   = !on;
-      $("#btnUpdate").disabled = !on || !current;
-      $("#btnDelete").disabled = !on || !current;
-      $("#docId").disabled  = on;
-      $("#docPwd").disabled = on;
+    function setState(mode){
+      const pill = $("#state");
+      if(!pill) return;
+      if (mode === "connecting"){
+        pill.textContent = "conectando…";
+        pill.style.background = "#eef4ff";
+        pill.style.color = "#305fbd";
+      } else if (mode === "online"){
+        pill.textContent = "online";
+        pill.style.background = "#e8fbfb";
+        pill.style.color = "#075e59";
+      } else {
+        pill.textContent = "offline";
+        pill.style.background = "#ffeaea";
+        pill.style.color = "#8b1a1a";
+      }
     }
+
+    function setUIByAuth(u){
+      const logged = !!u;
+      $("#btnLogin").classList.toggle("hide",  logged);
+      $("#btnLogout").classList.toggle("hide", !logged);
+      $("#sessionState").textContent = logged ? ("Sesión: " + (u.email || u.id)) : "Sesión: desconectado";
+      $("#btnSave").disabled   = !logged;
+      $("#btnUpdate").disabled = !logged || !current;
+      $("#btnDelete").disabled = !logged || !current;
+      $("#docId").disabled = logged;
+      $("#docPwd").disabled = logged;
+      setState(logged ? "online" : "offline");
+    }
+
     function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
     function fillForm(p){
       $("#f_nombre").value = p?.nombre || "";
@@ -155,14 +174,18 @@
 
     async function ensureSupa(){
       if (supa) return supa;
+      setState("connecting");
       // espera a que la librería UMD esté disponible
       let tries=0;
-      while(!window.supabase && tries<60){ await new Promise(r=>setTimeout(r,100)); tries++; }
+      while(!window.supabase && tries<80){ await new Promise(r=>setTimeout(r,100)); tries++; }
       if(!window.supabase){ alert("No se pudo cargar supabase-js."); throw new Error("supabase no cargó"); }
 
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
       });
+
+      if (FORCE_SIGNOUT_ON_LOAD) { try{ await supa.auth.signOut(); }catch{} }
+
       supa.auth.onAuthStateChange(refreshSession);
       await refreshSession();
       return supa;
@@ -172,34 +195,25 @@
       if(!supa) return;
       const { data:{ session } } = await supa.auth.getSession();
       user = session?.user || null;
-      const sEl = $("#sessionState");
-      if(user){
-        sEl.textContent = "Sesión: " + (user.email || user.id);
-        $("#btnLogin").classList.add("hide");
-        $("#btnLogout").classList.remove("hide");
-        setOnline(true);
-      }else{
-        sEl.textContent = "Sesión: desconectado";
-        $("#btnLogin").classList.remove("hide");
-        $("#btnLogout").classList.add("hide");
-        setOnline(false);
-      }
+      setUIByAuth(user);
     }
 
+    // --- Auth ---
     async function doLogin(){
       try{
         await ensureSupa();
         const raw = ($("#docId").value || "").trim();
         const pwd = $("#docPwd").value || "";
-        if(!raw || !pwd) return alert("Escribe ID y contraseña");
+        if (!raw || !pwd) return alert("Escribe ID y contraseña");
         const email = idToEmail(raw);
         const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
-        if(error) return alert("Error al iniciar sesión: " + error.message);
+        if (error) return alert("Error al iniciar sesión: " + error.message);
         $("#docPwd").value = "";
       }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
     }
     async function doLogout(){ try{ await ensureSupa(); await supa.auth.signOut(); }catch(e){} }
 
+    // --- Storage ---
     async function uploadPhoto(file){
       if(!file) return null;
       await ensureSupa();
@@ -211,6 +225,7 @@
       return data.publicUrl || null;
     }
 
+    // --- CRUD ---
     async function saveNew(){
       if(!user) return alert("Inicia sesión para guardar.");
       await ensureSupa();
@@ -316,7 +331,7 @@
       });
     }
 
-    // Listeners SIEMPRE
+    // Listeners SIEMPRE (no dependen de cargarse Supabase)
     function bindUIOnce(){
       if (window.__bound) return; window.__bound=true;
       $("#btnLogin").addEventListener("click", doLogin);
@@ -329,7 +344,7 @@
       $("#y").textContent=new Date().getFullYear();
     }
 
-    // Arranque & rebind tras refresh/BFCache
+    // Arranque & rebind tras refresh / BFCache
     if (document.readyState!=='loading'){ bindUIOnce(); ensureSupa().catch(()=>{}); }
     else document.addEventListener('DOMContentLoaded', ()=>{ bindUIOnce(); ensureSupa().catch(()=>{}); });
     window.addEventListener('pageshow', ()=>{ bindUIOnce(); ensureSupa().catch(()=>{}); });
