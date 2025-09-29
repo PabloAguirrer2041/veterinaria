@@ -1,0 +1,6 @@
+{
+  "headers": [
+    { "source": "/programador.html", "headers": [{ "key": "Cache-Control", "value": "no-store" }] },
+    { "source": "/lib/supabase.min.js", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
+  ]
+}

@@ -5,15 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Doctor · Registro de mascotas</title>
 
+  <!-- (opcional) ayuda a que el navegador no use copia vieja -->
+  <meta http-equiv="Cache-Control" content="no-store, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
 
   <style>
-    :root{
-      --bg:#f6f9fb; --card:#ffffff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4;
-      --shadow: 0 10px 30px rgba(16,24,40,.06);
-    }
+    :root{ --bg:#f6f9fb; --card:#ffffff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4; --shadow:0 10px 30px rgba(16,24,40,.06) }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
     .container{max-width:980px;margin:auto;padding:20px}
@@ -43,6 +45,28 @@
     .login{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .login input{width:auto}
   </style>
+
+  <!-- 1) Carga local de la librería -->
+  <script src="lib/supabase.min.js" defer></script>
+
+  <!-- 2) Fallback a CDN solo si lo local no puso window.supabase -->
+  <script>
+    window.addEventListener('load', function(){
+      if (window.supabase) return;
+      const cdns = [
+        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js",
+        "https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"
+      ];
+      (function next(i){
+        if (window.supabase || i>=cdns.length) return;
+        const s = document.createElement('script');
+        s.src = cdns[i]; s.defer = true;
+        s.onload = ()=>console.log("[supabase] cargado desde CDN");
+        s.onerror = ()=>{ console.warn("[supabase] CDN fallback…"); next(i+1); };
+        document.head.appendChild(s);
+      })(0);
+    });
+  </script>
 </head>
 <body>
   <div class="container">
@@ -93,27 +117,7 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
-  <!-- 1) Carga Supabase UMD con fallback -->
-  <script>
-    (function loadSupabaseUMD(){
-      const urls = [
-        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js",
-        "https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"
-      ];
-      let i = 0;
-      (function next(){
-        if (window.supabase) return;
-        if (i >= urls.length) { console.error("No se pudo cargar supabase-js"); return; }
-        const s = document.createElement("script");
-        s.src = urls[i++]; s.defer = true;
-        s.onload = ()=>console.log("[supabase] cargado");
-        s.onerror = ()=>{ console.warn("[supabase] fallback…"); next(); };
-        document.head.appendChild(s);
-      })();
-    })();
-  </script>
-
-  <!-- 2) App: todo el JS en este archivo -->
+  <!-- App: todo el JS aquí (igual que tu versión estable) -->
   <script>
   (function(){
     'use strict';
@@ -124,12 +128,10 @@
     const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
     const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
 
-    let supa = null;
-    let user = null;
-    let current = null;
+    let supa=null, user=null, current=null;
 
     function setOnline(on){
-      const pill = $("#state");
+      const pill=$("#state");
       pill.textContent = on ? "online" : "offline";
       pill.style.background = on ? "#e8fbfb" : "#ffeaea";
       pill.style.color = on ? "#075e59" : "#8b1a1a";
@@ -151,15 +153,13 @@
       $("#f_hist").value   = p?.historial || "";
     }
 
-    // Espera a que esté supabase y crea cliente una sola vez
     async function ensureSupa(){
       if (supa) return supa;
-      let tries = 0;
-      while(!window.supabase && tries < 60){ // ~6s
-        await new Promise(r=>setTimeout(r,100));
-        tries++;
-      }
-      if (!window.supabase) { alert("No se pudo cargar supabase-js."); throw new Error("supabase no cargó"); }
+      // espera a que la librería UMD esté disponible
+      let tries=0;
+      while(!window.supabase && tries<60){ await new Promise(r=>setTimeout(r,100)); tries++; }
+      if(!window.supabase){ alert("No se pudo cargar supabase-js."); throw new Error("supabase no cargó"); }
+
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
       });
@@ -169,16 +169,16 @@
     }
 
     async function refreshSession(){
-      if (!supa) return;
+      if(!supa) return;
       const { data:{ session } } = await supa.auth.getSession();
       user = session?.user || null;
       const sEl = $("#sessionState");
-      if (user){
+      if(user){
         sEl.textContent = "Sesión: " + (user.email || user.id);
         $("#btnLogin").classList.add("hide");
         $("#btnLogout").classList.remove("hide");
         setOnline(true);
-      } else {
+      }else{
         sEl.textContent = "Sesión: desconectado";
         $("#btnLogin").classList.remove("hide");
         $("#btnLogout").classList.add("hide");
@@ -186,81 +186,76 @@
       }
     }
 
-    // --- Auth ---
     async function doLogin(){
       try{
         await ensureSupa();
         const raw = ($("#docId").value || "").trim();
         const pwd = $("#docPwd").value || "";
-        if (!raw || !pwd) return alert("Escribe ID y contraseña");
+        if(!raw || !pwd) return alert("Escribe ID y contraseña");
         const email = idToEmail(raw);
         const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
-        if (error) return alert("Error al iniciar sesión: " + error.message);
+        if(error) return alert("Error al iniciar sesión: " + error.message);
         $("#docPwd").value = "";
       }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
     }
-    async function doLogout(){
-      try{ await ensureSupa(); await supa.auth.signOut(); }catch(e){ console.warn("[logout]", e); }
-    }
+    async function doLogout(){ try{ await ensureSupa(); await supa.auth.signOut(); }catch(e){} }
 
-    // --- Storage ---
     async function uploadPhoto(file){
       if(!file) return null;
       await ensureSupa();
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `mascotas/${uuid()}.${ext}`;
+      const ext=(file.name.split(".").pop()||"jpg").toLowerCase();
+      const path=`mascotas/${uuid()}.${ext}`;
       const { error } = await supa.storage.from("fotos").upload(path, file, { upsert:false });
-      if (error){ logMsg("⚠️ Upload: " + error.message); return null; }
+      if(error){ logMsg("⚠️ Upload: " + error.message); return null; }
       const { data } = supa.storage.from("fotos").getPublicUrl(path);
       return data.publicUrl || null;
     }
 
-    // --- CRUD ---
     async function saveNew(){
       if(!user) return alert("Inicia sesión para guardar.");
       await ensureSupa();
-      $("#btnSave").disabled = true;
+      $("#btnSave").disabled=true;
 
-      const file = $("#f_foto")?.files?.[0];
+      const file=$("#f_foto")?.files?.[0];
       const foto_url = file ? await uploadPhoto(file) : null;
 
-      const payload = {
-        nombre:   $("#f_nombre").value.trim(),
-        raza:     $("#f_raza").value.trim(),
-        edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
-        sexo:     $("#f_sexo").value,
-        duenio:   $("#f_duenio").value.trim(),
-        telefono: $("#f_tel").value.trim(),
-        email:    $("#f_email").value.trim(),
+      const payload={
+        nombre:$("#f_nombre").value.trim(),
+        raza:$("#f_raza").value.trim(),
+        edad:$("#f_edad").value ? Number($("#f_edad").value) : null,
+        sexo:$("#f_sexo").value,
+        duenio:$("#f_duenio").value.trim(),
+        telefono:$("#f_tel").value.trim(),
+        email:$("#f_email").value.trim(),
         historial:$("#f_hist").value.trim(),
         foto_url,
-        owner_id: user.id
+        owner_id:user.id
       };
       if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
       const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
       if(error){ logMsg("✖ Insert: " + error.message); }
-      else { logMsg("✅ Guardado ID " + data.id); current = { id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
-      $("#btnSave").disabled = false;
+      else { logMsg("✅ Guardado ID " + data.id); current={ id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
+      $("#btnSave").disabled=false;
     }
 
     async function updateCurrent(){
       if(!user || !current) return;
       await ensureSupa();
-      $("#btnUpdate").disabled = true;
+      $("#btnUpdate").disabled=true;
 
-      let foto_url = current.foto_url || null;
-      const file = $("#f_foto")?.files?.[0];
-      if (file){ const up = await uploadPhoto(file); if(up) foto_url = up; }
+      let foto_url=current.foto_url || null;
+      const file=$("#f_foto")?.files?.[0];
+      if(file){ const up=await uploadPhoto(file); if(up) foto_url=up; }
 
-      const payload = {
-        nombre:   $("#f_nombre").value.trim(),
-        raza:     $("#f_raza").value.trim(),
-        edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
-        sexo:     $("#f_sexo").value,
-        duenio:   $("#f_duenio").value.trim(),
-        telefono: $("#f_tel").value.trim(),
-        email:    $("#f_email").value.trim(),
+      const payload={
+        nombre:$("#f_nombre").value.trim(),
+        raza:$("#f_raza").value.trim(),
+        edad:$("#f_edad").value ? Number($("#f_edad").value) : null,
+        sexo:$("#f_sexo").value,
+        duenio:$("#f_duenio").value.trim(),
+        telefono:$("#f_tel").value.trim(),
+        email:$("#f_email").value.trim(),
         historial:$("#f_hist").value.trim(),
         foto_url
       };
@@ -268,49 +263,44 @@
       const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
       if(error){ logMsg("✖ Update: " + error.message); }
       else { logMsg("✅ Actualizado ID " + current.id); }
-      $("#btnUpdate").disabled = false;
+      $("#btnUpdate").disabled=false;
     }
 
     async function deleteCurrent(){
       if(!user || !current) return;
       if(!confirm(`¿Eliminar registro ID ${current.id}?`)) return;
       await ensureSupa();
-      $("#btnDelete").disabled = true;
+      $("#btnDelete").disabled=true;
       const { error } = await supa.from("mascotas").delete().eq("id", current.id);
       if(error){ logMsg("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
       logMsg("🗑️ Eliminado ID " + current.id);
-      current = null;
-      $("#btnUpdate").disabled = true;
-      $("#btnDelete").disabled = true;
-      $("#results").innerHTML = "";
+      current=null; $("#btnUpdate").disabled=true; $("#btnDelete").disabled=true; $("#results").innerHTML="";
     }
 
     async function search(){
       await ensureSupa();
-      const q = $("#q").value.trim();
-      const results = $("#results");
-      results.innerHTML = "";
-      if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
+      const q=$("#q").value.trim();
+      const results=$("#results"); results.innerHTML="";
+      if(!q){ results.innerHTML=`<div class="muted">Escribe un nombre o ID.</div>`; return; }
 
-      let query = supa
-        .from("mascotas")
+      let query = supa.from("mascotas")
         .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
         .order("id",{ascending:false}).limit(20);
 
-      const n = Number(q);
+      const n=Number(q);
       query = (Number.isFinite(n) && String(n)===q)
         ? query.or(`id.eq.${n},nombre.ilike.%${q}%`)
         : query.ilike("nombre", `%${q}%`);
 
       const { data, error } = await query;
-      if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
-      if(!data?.length){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
+      if(error){ results.innerHTML=`<div class="muted">Error: ${error.message}</div>`; return; }
+      if(!data?.length){ results.innerHTML=`<div class="muted">Sin resultados.</div>`; return; }
 
       data.forEach(p=>{
-        const card = document.createElement("div");
-        card.className = "item";
-        const foto = p.foto_url || "img/perrito.jpg";
-        card.innerHTML = `
+        const card=document.createElement("div");
+        card.className="item";
+        const foto=p.foto_url || "img/perrito.jpg";
+        card.innerHTML=`
           <img src="${foto}" alt="${p.nombre}">
           <div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -320,15 +310,15 @@
             </div>
             <div class="muted">Dueño: ${p.duenio || "—"}</div>
           </div>`;
-        card.style.cursor = "pointer";
-        card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
+        card.style.cursor="pointer";
+        card.onclick=()=>{ current=p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
         results.appendChild(card);
       });
     }
 
-    // Listeners SIEMPRE (no dependen de que cargue supabase)
+    // Listeners SIEMPRE
     function bindUIOnce(){
-      if (window.__bound) return; window.__bound = true;
+      if (window.__bound) return; window.__bound=true;
       $("#btnLogin").addEventListener("click", doLogin);
       $("#btnLogout").addEventListener("click", doLogout);
       $("#btnSearch").addEventListener("click", search);
@@ -336,15 +326,14 @@
       $("#btnSave").addEventListener("click", saveNew);
       $("#btnUpdate").addEventListener("click", updateCurrent);
       $("#btnDelete").addEventListener("click", deleteCurrent);
-      $("#y").textContent = new Date().getFullYear();
+      $("#y").textContent=new Date().getFullYear();
     }
 
-    // Boot
-    if (document.readyState !== 'loading') { bindUIOnce(); ensureSupa().catch(()=>{}); }
+    // Arranque & rebind tras refresh/BFCache
+    if (document.readyState!=='loading'){ bindUIOnce(); ensureSupa().catch(()=>{}); }
     else document.addEventListener('DOMContentLoaded', ()=>{ bindUIOnce(); ensureSupa().catch(()=>{}); });
-
-    // Volviendo desde BFCache / refrescos
     window.addEventListener('pageshow', ()=>{ bindUIOnce(); ensureSupa().catch(()=>{}); });
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ bindUIOnce(); ensureSupa().catch(()=>{}); }});
   })();
   </script>
 </body>
