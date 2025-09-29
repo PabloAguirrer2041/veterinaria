@@ -43,19 +43,24 @@
     .login{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .login input{width:auto}
   </style>
+
+  <!-- Supabase UMD con fallback, ambos DEFER para no bloquear -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"
+          onerror="(function(){var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js';s.defer=true;document.head.appendChild(s);}())">
+  </script>
 </head>
 <body>
   <div class="container">
     <div class="topbar">
       <a class="link" href="index.html">← Volver al menú</a>
 
-      <!-- LOGIN dentro de <form> -->
-      <form id="loginForm" class="login" autocomplete="on">
+      <!-- LOGIN como <form> con handlers inline (siempre activos) -->
+      <form id="loginForm" class="login" autocomplete="on" onsubmit="return onLogin(event)">
         <span id="sessionState" class="muted">Sesión: desconectado</span>
         <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username">
         <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
         <button id="btnLogin"  type="submit" class="btn">Iniciar sesión</button>
-        <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
+        <button id="btnLogout" type="button" class="btn hide" onclick="onLogout()">Cerrar sesión</button>
       </form>
     </div>
 
@@ -64,8 +69,8 @@
       <p class="muted" style="margin-top:-4px">Solo doctores autorizados pueden crear o editar registros.</p>
 
       <div class="row" style="margin:8px 0 14px">
-        <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')">
-        <button id="btnSearch" class="btn btn--brand" type="button">Buscar</button>
+        <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')" onkeydown="if(event.key==='Enter'){event.preventDefault();onSearch();}">
+        <button id="btnSearch" class="btn btn--brand" type="button" onclick="onSearch()">Buscar</button>
       </div>
 
       <div class="grid">
@@ -81,9 +86,9 @@
       </div>
 
       <div class="actions">
-        <button id="btnSave"   class="btn btn--brand" type="button" disabled>Guardar (nuevo)</button>
-        <button id="btnUpdate" class="btn" type="button" disabled>Actualizar</button>
-        <button id="btnDelete" class="btn btn--danger" type="button" disabled>Eliminar</button>
+        <button id="btnSave"   class="btn btn--brand" type="button" onclick="onSave()"   disabled>Guardar (nuevo)</button>
+        <button id="btnUpdate" class="btn"           type="button" onclick="onUpdate()" disabled>Actualizar</button>
+        <button id="btnDelete" class="btn btn--danger" type="button" onclick="onDelete()" disabled>Eliminar</button>
       </div>
 
       <div id="log" class="hide"></div>
@@ -93,15 +98,7 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
-  <!-- Supabase UMD: principal + fallback -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
-  <script>
-    if (!window.supabase) {
-      document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"><\\/script>');
-    }
-  </script>
-
-  <!-- App -->
+  <!-- App: sin dependencias de carga; todo expuesto en global -->
   <script>
   (function(){
     'use strict';
@@ -111,29 +108,24 @@
 
     const $ = (s)=>document.querySelector(s);
     const idToEmail = (id)=> `${String(id||"").trim().toLowerCase()}@doctores.local`;
+    const uuid = ()=> (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                   : (Date.now().toString(36)+Math.random().toString(36).slice(2));
 
-    const state = {
-      supa: null,
-      user: null,
-      current: null,
-      boundAuth: false,
-    };
+    const state = { supa:null, user:null, current:null };
 
-    // ------------- helpers de UI -------------
+    // ============== UI helpers ==============
     function setOnline(on){
-      const stateEl = $("#state");
-      stateEl.textContent = on ? "online" : "offline";
-      stateEl.style.background = on ? "#e8fbfb" : "#ffeaea";
-      stateEl.style.color = on ? "#075e59" : "#8b1a1a";
+      const el = $("#state");
+      el.textContent = on ? "online" : "offline";
+      el.style.background = on ? "#e8fbfb" : "#ffeaea";
+      el.style.color = on ? "#075e59" : "#8b1a1a";
       $("#btnSave").disabled   = !on;
       $("#btnUpdate").disabled = !on || !state.current;
       $("#btnDelete").disabled = !on || !state.current;
       $("#docId").disabled  = on;
       $("#docPwd").disabled = on;
     }
-    function logMsg(m){
-      const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop=el.scrollHeight;
-    }
+    function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
     function fillForm(p){
       $("#f_nombre").value = p?.nombre || "";
       $("#f_raza").value   = p?.raza   || "";
@@ -141,85 +133,76 @@
       $("#f_sexo").value   = p?.sexo   || "";
       $("#f_duenio").value = p?.duenio || "";
       $("#f_tel").value    = p?.telefono || "";
-      $("#f_email").value  = p?.email    || "";
-      $("#f_hist").value   = p?.historial|| "";
+      $("#f_email").value  = p?.email || "";
+      $("#f_hist").value   = p?.historial || "";
     }
 
-    // ------------- Supabase: init perezoso -------------
+    // ============== Supabase lazy init ==============
     async function ensureSupa(){
       if (state.supa) return state.supa;
-
-      // espera a que el UMD exista
-      let tries = 0;
-      while (!window.supabase && tries++ < 60) {
-        await new Promise(r=>setTimeout(r,100));
-      }
-      if (!window.supabase) {
-        alert("No se pudo cargar supabase-js.");
-        throw new Error("supabase-js no disponible");
-      }
+      // Espera hasta 8s a que exista window.supabase (por si el CDN tarda)
+      let t = 0;
+      while (!window.supabase && t++ < 80) await new Promise(r=>setTimeout(r,100));
+      if (!window.supabase) { alert("No se pudo cargar supabase-js."); throw new Error("supabase no disponible"); }
 
       state.supa = window.supabase.createClient(
         SUPABASE_URL, SUPABASE_ANON_KEY,
-        { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
+        { auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true } }
       );
-
-      // suscripción de sesión (solo 1 vez)
-      if (!state.boundAuth) {
-        state.supa.auth.onAuthStateChange(refreshSession);
-        state.boundAuth = true;
-      }
-      await refreshSession();
+      await refreshSession(); // establece UI
       return state.supa;
     }
 
-    // ------------- sesión -------------
     async function refreshSession(){
       if (!state.supa) return;
       const { data:{ session } } = await state.supa.auth.getSession();
       state.user = session?.user || null;
-      const sessionEl = $("#sessionState");
+      const sEl = $("#sessionState");
       if (state.user){
-        sessionEl.textContent = "Sesión: " + (state.user.email || state.user.id);
+        sEl.textContent = "Sesión: " + (state.user.email || state.user.id);
         $("#btnLogin").classList.add("hide");
         $("#btnLogout").classList.remove("hide");
         setOnline(true);
       } else {
-        sessionEl.textContent = "Sesión: desconectado";
+        sEl.textContent = "Sesión: desconectado";
         $("#btnLogin").classList.remove("hide");
         $("#btnLogout").classList.add("hide");
         setOnline(false);
       }
     }
 
-    // ------------- acciones -------------
-    async function doLogin(){
+    // ============== Exponer handlers globales (inline) ==============
+    window.onLogin = async function(e){
+      e.preventDefault();
       const supa = await ensureSupa();
       const id  = $("#docId").value.trim();
       const pwd = $("#docPwd").value;
-      if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
+      if(!id || !pwd){ alert("Escribe ID y contraseña"); return false; }
       const email = idToEmail(id);
       const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
       if (error) alert("Error al iniciar sesión: " + error.message);
       else $("#docPwd").value = "";
-    }
-    async function doLogout(){
+      return false;
+    };
+
+    window.onLogout = async function(){
       const supa = await ensureSupa();
       await supa.auth.signOut();
-    }
+      await refreshSession();
+    };
 
     async function uploadPhoto(file){
       if(!file) return null;
       const supa = await ensureSupa();
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `mascotas/${crypto.randomUUID()}.${ext}`;
+      const path = `mascotas/${uuid()}.${ext}`;
       const { error } = await supa.storage.from("fotos").upload(path, file, { upsert:false });
-      if(error){ logMsg("⚠️ Upload: " + error.message); return null; }
+      if (error){ logMsg("⚠️ Upload: " + error.message); return null; }
       const { data } = supa.storage.from("fotos").getPublicUrl(path);
       return data.publicUrl || null;
     }
 
-    async function saveNew(){
+    window.onSave = async function(){
       if(!state.user){ alert("Inicia sesión para guardar."); return; }
       const supa = await ensureSupa();
       $("#btnSave").disabled = true;
@@ -245,9 +228,9 @@
       if(error){ logMsg("✖ Insert: " + error.message); }
       else { logMsg("✅ Guardado ID " + data.id); state.current = { id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
       $("#btnSave").disabled = false;
-    }
+    };
 
-    async function updateCurrent(){
+    window.onUpdate = async function(){
       if(!state.user || !state.current) return;
       const supa = await ensureSupa();
       $("#btnUpdate").disabled = true;
@@ -272,9 +255,9 @@
       if(error){ logMsg("✖ Update: " + error.message); }
       else { logMsg("✅ Actualizado ID " + state.current.id); }
       $("#btnUpdate").disabled = false;
-    }
+    };
 
-    async function deleteCurrent(){
+    window.onDelete = async function(){
       if(!state.user || !state.current) return;
       if(!confirm("¿Eliminar registro ID " + state.current.id + "?")) return;
       const supa = await ensureSupa();
@@ -286,9 +269,9 @@
       $("#btnUpdate").disabled = true;
       $("#btnDelete").disabled = true;
       $("#results").innerHTML="";
-    }
+    };
 
-    async function search(){
+    window.onSearch = async function(){
       const supa = await ensureSupa();
       const q = $("#q").value.trim();
       const results = $("#results");
@@ -331,33 +314,16 @@
         card.onclick = ()=>{ state.current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
         results.appendChild(card);
       });
-    }
+    };
 
-    // ---------- Enlaces de eventos (siempre se atan, no dependen de Supabase) ----------
-    document.addEventListener("DOMContentLoaded", ()=>{
-      document.getElementById("y").textContent = new Date().getFullYear();
-
-      // submit login
-      document.getElementById("loginForm").addEventListener("submit", (e)=>{
-        e.preventDefault(); doLogin();
-      });
-      // logout
-      document.getElementById("btnLogout").addEventListener("click", doLogout);
-      // acciones
-      document.getElementById("btnSave").addEventListener("click",   saveNew);
-      document.getElementById("btnUpdate").addEventListener("click", updateCurrent);
-      document.getElementById("btnDelete").addEventListener("click", deleteCurrent);
-      document.getElementById("btnSearch").addEventListener("click", search);
-      document.getElementById("q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
-
-      // primera carga de sesión (si el SDK ya está, se resuelve al tiro; si no, en cuanto esté)
-      ensureSupa().catch(()=>{ /* ya se notificó */ });
+    // Pie de página + rehidratación de sesión cuando la página vuelve al frente
+    document.addEventListener('DOMContentLoaded', ()=>{
+      $("#y").textContent = new Date().getFullYear();
+      // Si supabase ya cargó, inicializa; si no, se hará al primer click
+      ensureSupa().catch(()=>{});
     });
-
-    // Rehidratación al volver / ganar foco
     window.addEventListener('pageshow', ()=>{ ensureSupa().catch(()=>{}); });
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) ensureSupa().catch(()=>{}); });
-
   })();
   </script>
 </body>
