@@ -48,13 +48,15 @@
   <div class="container">
     <div class="topbar">
       <a class="link" href="index.html">← Volver al menú</a>
-      <div class="login">
+
+      <!-- LOGIN dentro de <form> -->
+      <form id="loginForm" class="login" autocomplete="on">
         <span id="sessionState" class="muted">Sesión: desconectado</span>
-        <input id="docId"  type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username">
-        <input id="docPwd" type="password" placeholder="Contraseña" autocomplete="current-password">
-        <button id="btnLogin"  class="btn">Iniciar sesión</button>
-        <button id="btnLogout" class="btn hide">Cerrar sesión</button>
-      </div>
+        <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username">
+        <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
+        <button id="btnLogin"  type="submit" class="btn">Iniciar sesión</button>
+        <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
+      </form>
     </div>
 
     <div class="card">
@@ -63,7 +65,7 @@
 
       <div class="row" style="margin:8px 0 14px">
         <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')">
-        <button id="btnSearch" class="btn btn--brand">Buscar</button>
+        <button id="btnSearch" class="btn btn--brand" type="button">Buscar</button>
       </div>
 
       <div class="grid">
@@ -79,16 +81,15 @@
       </div>
 
       <div class="actions">
-        <button id="btnSave" class="btn btn--brand" disabled>Guardar (nuevo)</button>
-        <button id="btnUpdate" class="btn" disabled>Actualizar</button>
-        <button id="btnDelete" class="btn btn--danger" disabled>Eliminar</button>
+        <button id="btnSave"   class="btn btn--brand" type="button" disabled>Guardar (nuevo)</button>
+        <button id="btnUpdate" class="btn" type="button" disabled>Actualizar</button>
+        <button id="btnDelete" class="btn btn--danger" type="button" disabled>Eliminar</button>
       </div>
 
       <div id="log" class="hide"></div>
     </div>
 
     <div id="results" class="results"></div>
-
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
@@ -108,16 +109,13 @@
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
+    // Espera segura a supabase (por si el CDN tarda)
     function withSupabase(cb){
       if (window.supabase) return cb();
       let tries = 0;
       const iv = setInterval(()=>{
         if (window.supabase){ clearInterval(iv); cb(); }
-        else if (++tries > 50){
-          clearInterval(iv);
-          console.error("No se cargó supabase-js");
-          alert("No se pudo cargar supabase-js (verifica Internet/CSP/CDN).");
-        }
+        else if (++tries > 50){ clearInterval(iv); console.error("No se cargó supabase-js"); alert("No se pudo cargar supabase-js."); }
       }, 100);
     }
 
@@ -132,19 +130,17 @@
       stateEl.textContent = on ? "online" : "offline";
       stateEl.style.background = on ? "#e8fbfb" : "#ffeaea";
       stateEl.style.color = on ? "#075e59" : "#8b1a1a";
-
       $("#btnSave").disabled   = !on;
       $("#btnUpdate").disabled = !on || !current;
       $("#btnDelete").disabled = !on || !current;
-
       $("#docId").disabled  = on;
       $("#docPwd").disabled = on;
     }
 
-    function showLog(m){
+    function logMsg(msg){
       const logEl = $("#log");
       logEl.classList.remove("hide");
-      logEl.textContent += m + "\n";
+      logEl.textContent += msg + "\n";
       logEl.scrollTop = logEl.scrollHeight;
     }
 
@@ -160,29 +156,27 @@
     }
 
     function initApp(){
+      // Reutiliza un cliente único entre navegaciones (BFCache)
       const supa = window.__supa || (window.__supa = window.supabase.createClient(
         SUPABASE_URL, SUPABASE_ANON_KEY,
         { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
       ));
 
       async function refreshSession(){
-        try{
-          const { data:{ session } } = await supa.auth.getSession();
-          sessionUser = session?.user || null;
-
-          const sessionEl = $("#sessionState");
-          if (sessionUser){
-            sessionEl.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
-            $("#btnLogin").classList.add("hide");
-            $("#btnLogout").classList.remove("hide");
-            setOnline(true);
-          } else {
-            sessionEl.textContent = "Sesión: desconectado";
-            $("#btnLogin").classList.remove("hide");
-            $("#btnLogout").classList.add("hide");
-            setOnline(false);
-          }
-        }catch(e){ console.warn("refreshSession:", e); }
+        const { data:{ session } } = await supa.auth.getSession();
+        sessionUser = session?.user || null;
+        const sessionEl = $("#sessionState");
+        if (sessionUser){
+          sessionEl.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
+          $("#btnLogin").classList.add("hide");
+          $("#btnLogout").classList.remove("hide");
+          setOnline(true);
+        } else {
+          sessionEl.textContent = "Sesión: desconectado";
+          $("#btnLogin").classList.remove("hide");
+          $("#btnLogout").classList.add("hide");
+          setOnline(false);
+        }
       }
 
       async function uploadPhoto(file){
@@ -190,7 +184,7 @@
         const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
         const path = `mascotas/${crypto.randomUUID()}.${ext}`;
         const { error: upErr } = await supa.storage.from("fotos").upload(path, file, { upsert: false });
-        if(upErr){ showLog("⚠️ Upload: " + upErr.message); return null; }
+        if(upErr){ logMsg("⚠️ Upload: " + upErr.message); return null; }
         const { data } = supa.storage.from("fotos").getPublicUrl(path);
         return data.publicUrl || null;
       }
@@ -200,8 +194,7 @@
         $("#btnSave").disabled = true;
 
         const fotoFile = $("#f_foto")?.files?.[0];
-        let foto_url = null;
-        if (fotoFile) foto_url = await uploadPhoto(fotoFile);
+        const foto_url = fotoFile ? await uploadPhoto(fotoFile) : null;
 
         const payload = {
           nombre:   $("#f_nombre").value.trim(),
@@ -218,8 +211,8 @@
         if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
         const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
-        if(error){ showLog("✖ Insert: " + error.message); }
-        else { showLog("✅ Guardado ID " + data.id); current = { id: data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
+        if(error){ logMsg("✖ Insert: " + error.message); }
+        else { logMsg("✅ Guardado ID " + data.id); current = { id: data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
         $("#btnSave").disabled = false;
       }
 
@@ -244,8 +237,8 @@
         };
 
         const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
-        if(error){ showLog("✖ Update: " + error.message); }
-        else { showLog("✅ Actualizado ID " + current.id); }
+        if(error){ logMsg("✖ Update: " + error.message); }
+        else { logMsg("✅ Actualizado ID " + current.id); }
         $("#btnUpdate").disabled = false;
       }
 
@@ -254,8 +247,8 @@
         if(!confirm("¿Eliminar registro ID " + current.id + "?")) return;
         $("#btnDelete").disabled = true;
         const { error } = await supa.from("mascotas").delete().eq("id", current.id);
-        if(error){ showLog("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
-        showLog("🗑️ Eliminado ID " + current.id);
+        if(error){ logMsg("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
+        logMsg("🗑️ Eliminado ID " + current.id);
         current = null;
         $("#btnUpdate").disabled = true;
         $("#btnDelete").disabled = true;
@@ -306,33 +299,40 @@
         });
       }
 
-      if (!window.__appBoundNoClear){
-        window.__appBoundNoClear = true;
+      // ====== Enlaces de eventos (solo una vez por sesión de página) ======
+      if (!window.__progBound){
+        window.__progBound = true;
 
+        // Submit del login (Enter o botón)
+        document.addEventListener("submit", (ev)=>{
+          if (ev.target && ev.target.id === "loginForm") {
+            ev.preventDefault();
+            const id  = $("#docId").value.trim();
+            const pwd = $("#docPwd").value;
+            if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
+            const email = idToEmail(id);
+            window.__supa.auth.signInWithPassword({ email, password: pwd })
+              .then(({error})=>{
+                if(error) alert("Error al iniciar sesión: " + error.message);
+                else $("#docPwd").value = "";
+              });
+          }
+        });
+
+        // Clicks
         document.addEventListener("click", (ev)=>{
           const btn = ev.target.closest("button");
           if (!btn) return;
           switch (btn.id) {
-            case "btnLogin": {
-              const id  = $("#docId").value.trim();
-              const pwd = $("#docPwd").value;
-              if(!id || !pwd){ alert("Escribe ID y contraseña"); return; }
-              const email = idToEmail(id);
-              window.__supa.auth.signInWithPassword({ email, password: pwd })
-                .then(({error})=>{
-                  if(error) alert("Error al iniciar sesión: " + error.message);
-                  else $("#docPwd").value = "";
-                });
-              break;
-            }
-            case "btnLogout":  window.__supa.auth.signOut(); break;
-            case "btnSave":    saveNew();    break;
-            case "btnUpdate":  updateCurrent(); break;
-            case "btnDelete":  deleteCurrent(); break;
-            case "btnSearch":  search(); break;
+            case "btnLogout": window.__supa.auth.signOut(); break;
+            case "btnSave":   saveNew();    break;
+            case "btnUpdate": updateCurrent(); break;
+            case "btnDelete": deleteCurrent(); break;
+            case "btnSearch": search(); break;
           }
         });
 
+        // Enter en el buscador
         document.addEventListener("keydown", (e)=>{
           if (e.key === "Enter" && e.target && e.target.id === "q"){
             e.preventDefault();
@@ -340,21 +340,23 @@
           }
         });
 
+        // Cambios de sesión
         window.__supa.auth.onAuthStateChange(()=>refreshSession());
       }
 
+      // Boot UI
       document.getElementById("y").textContent = new Date().getFullYear();
       refreshSession();
     } // initApp
 
     function boot(){ withSupabase(initApp); }
 
+    // Arranque + rehidratación
     if (document.readyState !== 'loading') boot();
     else document.addEventListener('DOMContentLoaded', boot);
 
-    window.addEventListener('pageshow', boot);
+    window.addEventListener('pageshow', boot);                    // BFCache
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) boot(); });
-
   })();
   </script>
 </body>
