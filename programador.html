@@ -3,142 +3,335 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Programador NFC – Panel</title>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <title>Doctor · Registro de mascotas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+
   <style>
-    body{font-family:system-ui,Arial,sans-serif; background:#f6f9fb; color:#133; padding:24px;}
-    .card{background:#fff; border-radius:16px; padding:20px; max-width:780px; margin:auto; box-shadow:0 10px 30px rgba(0,0,0,.06)}
-    h1{margin:0 0 8px}
-    .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
-    label{font-size:12px; color:#567}
-    input{width:100%; padding:12px; border:1px solid #dbe1e6; border-radius:12px; outline:none}
-    input:focus{border-color:#4ea3ff; box-shadow:0 0 0 3px rgba(78,163,255,.2)}
-    button{padding:12px 16px; border-radius:12px; border:0; background:#1273ea; color:#fff; cursor:pointer}
-    button:disabled{opacity:.5; cursor:not-allowed}
-    .pill{display:inline-block; padding:4px 10px; border-radius:999px; background:#eef4ff; color:#305fbd; font-size:12px}
-    #log{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space:pre-wrap; background:#0b1220; color:#e6edf3; padding:14px; border-radius:12px; margin-top:16px; max-height:280px; overflow:auto}
+    :root{
+      --bg:#f6f9fb; --card:#ffffff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4;
+      --shadow: 0 10px 30px rgba(16,24,40,.06);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .container{max-width:980px;margin:auto;padding:20px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .link{color:var(--brand);font-weight:700;text-decoration:none}
+    .muted{color:var(--muted)}
+    .btn{border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn--brand{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn--danger{background:#ef4444;border-color:#ef4444;color:#fff}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px}
+    h1{margin:0 0 10px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    label{font-size:12px;color:#5b6b83}
+    input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:#93d9d7;box-shadow:0 0 0 3px rgba(14,165,160,.15)}
+    textarea{min-height:110px;resize:vertical}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .results{margin-top:16px;display:grid;gap:10px}
+    .item{display:grid;grid-template-columns:72px 1fr;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
+    .item img{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef4ff;color:#305fbd;font-weight:600;font-size:12px}
+    #log{margin-top:12px;white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1220;color:#e6edf3;border-radius:12px;padding:10px;max-height:220px;overflow:auto}
+    footer{padding:22px 0;color:#6b7280;text-align:center}
+    .hide{display:none}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Programador NFC <span id="status" class="pill">Conectando…</span></h1>
-    <p>Publica un comando MQTT al ESP para grabar la etiqueta NFC.</p>
-
-    <div class="row">
+  <div class="container">
+    <div class="topbar">
+      <a class="link" href="index.html">← Volver al menú</a>
       <div>
-        <label>ID mascota</label>
-        <input id="id" type="number" value="1" />
-      </div>
-      <div>
-        <label>Nombre</label>
-        <input id="nombre" type="text" value="Diego" />
+        <span id="sessionState" class="muted">Sesión: desconectado</span>
+        <button id="btnLogin" class="btn">Iniciar sesión</button>
+        <button id="btnLogout" class="btn hide">Cerrar sesión</button>
       </div>
     </div>
-    <div style="margin-top:12px">
-      <label>URL a grabar (NDEF)</label>
-      <input id="url" type="url" value="https://tu-dominio/#/cliente?m=Diego&id=1" />
+
+    <div class="card">
+      <h1>Doctor · Registro de mascotas <span class="pill" id="state">offline</span></h1>
+      <p class="muted" style="margin-top:-4px">Para guardar necesitas iniciar sesión (Supabase Auth).</p>
+
+      <!-- BUSCAR -->
+      <div class="row" style="margin:8px 0 14px">
+        <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')">
+        <button id="btnSearch" class="btn btn--brand">Buscar</button>
+        <button id="btnClear" class="btn">Limpiar</button>
+      </div>
+
+      <!-- FORM -->
+      <div class="grid">
+        <div>
+          <label>Nombre</label>
+          <input id="f_nombre" type="text" placeholder="Nombre de la mascota">
+        </div>
+        <div>
+          <label>Raza</label>
+          <input id="f_raza" type="text" placeholder="Beagle / Criollo…">
+        </div>
+        <div>
+          <label>Edad</label>
+          <input id="f_edad" type="number" min="0" step="1" placeholder="4">
+        </div>
+        <div>
+          <label>Sexo</label>
+          <select id="f_sexo">
+            <option value="">—</option>
+            <option>Hembra</option>
+            <option>Macho</option>
+          </select>
+        </div>
+        <div>
+          <label>Dueño (nombre)</label>
+          <input id="f_duenio" type="text" placeholder="Nombre del propietario">
+        </div>
+        <div>
+          <label>Teléfono</label>
+          <input id="f_tel" type="tel" placeholder="+52 81…">
+        </div>
+        <div>
+          <label>Email</label>
+          <input id="f_email" type="email" placeholder="propietario@correo.com">
+        </div>
+        <div>
+          <label>Foto (opcional)</label>
+          <input id="f_foto" type="file" accept="image/*">
+        </div>
+        <div style="grid-column:1/-1">
+          <label>Historial / notas</label>
+          <textarea id="f_hist" placeholder="Vacunas, alergias, observaciones…"></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btnSave" class="btn btn--brand" disabled>Guardar (nuevo)</button>
+        <button id="btnUpdate" class="btn" disabled>Actualizar</button>
+        <button id="btnDelete" class="btn btn--danger" disabled>Eliminar</button>
+      </div>
+
+      <div id="log" class="hide"></div>
     </div>
 
-    <div style="margin-top:16px; display:flex; gap:8px">
-      <button id="btn">Grabar en NFC</button>
-      <button id="btnPing" type="button" style="background:#546e7a">Solo probar conexión</button>
-    </div>
+    <div id="results" class="results"></div>
 
-    <div id="log"></div>
+    <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
+  <!-- Supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script>
-    // ---------- CONFIG ----------
-    const CLINIC_ID = "vet123";
-    const DEVICE_ID = "esp32_vet_001";
+    // 🔧 Rellena con tu proyecto
+    const SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
+    const SUPABASE_ANON_KEY = "TU_ANON_PUBLIC_KEY";
+    const supa = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Broker público de pruebas (sin usuario/clave):
-    // Para EMQX Serverless: 'wss://<tu-host>.emqxsl.com:8084/mqtt'
-    const WS_URL   = "wss://broker.emqx.io:8084/mqtt";
-    const USERNAME = "";    // si usas Serverless, completa aquí
-    const PASSWORD = "";
-
-    const topicCmd = `clinic/${CLINIC_ID}/esp/${DEVICE_ID}/cmd/write_nfc`;
-    const topicAck = `clinic/${CLINIC_ID}/esp/${DEVICE_ID}/ack`;
-
-    // ---------- UI ----------
     const $ = (s)=>document.querySelector(s);
-    const log = (m)=>{ const el=$("#log"); el.textContent += m + "\n"; el.scrollTop=el.scrollHeight; };
-    const setStatus = (t, ok=true)=>{ $("#status").textContent=t; $("#status").style.background = ok?"#eaf3ff":"#ffeaea"; $("#status").style.color = ok?"#214a9b":"#8b1a1a"; };
+    const logEl = $("#log");
+    const results = $("#results");
+    const state = $("#state");
+    const sessionState = $("#sessionState");
+    const btnLogin = $("#btnLogin");
+    const btnLogout = $("#btnLogout");
+    const btnSave = $("#btnSave");
+    const btnUpdate = $("#btnUpdate");
+    const btnDelete = $("#btnDelete");
 
-    // ---------- MQTT client (mqtt.js) ----------
-    const clientId = "web_" + Math.random().toString(16).slice(2, 10);
-    const options  = {
-      clientId,
-      clean: true,
-      keepalive: 30,
-      reconnectPeriod: 1500,
-      connectTimeout: 10_000,
-      username: USERNAME || undefined,
-      password: PASSWORD || undefined,
-    };
-    const client = mqtt.connect(WS_URL, options);
+    let current = null; // registro cargado para actualizar/eliminar
+    let sessionUser = null;
 
-    client.on("connect", () => {
-      setStatus("Conectado", true);
-      log(`[MQTT] conectado como ${clientId}`);
-      client.subscribe(topicAck, { qos: 1 }, (err)=> {
-        if (err) { log("[MQTT] error al suscribir ACK: " + err.message); }
-        else { log("[MQTT] sub " + topicAck); }
+    function setOnline(on){
+      state.textContent = on ? "online" : "offline";
+      state.style.background = on ? "#e8fbfb" : "#ffeaea";
+      state.style.color = on ? "#075e59" : "#8b1a1a";
+      btnSave.disabled = !on;
+      btnUpdate.disabled = !on || !current;
+      btnDelete.disabled = !on || !current;
+    }
+    function showLog(msg){
+      logEl.classList.remove("hide");
+      logEl.textContent += msg + "\\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function clearForm(){
+      ["f_nombre","f_raza","f_edad","f_sexo","f_duenio","f_tel","f_email","f_hist","f_foto"].forEach(id=>{
+        const el = $("#"+id); if(el.type==="file") el.value=""; else el.value="";
       });
-    });
+      current = null;
+      btnUpdate.disabled = true;
+      btnDelete.disabled = true;
+    }
+    function fillForm(p){
+      $("#f_nombre").value = p.nombre||"";
+      $("#f_raza").value = p.raza||"";
+      $("#f_edad").value = p.edad||"";
+      $("#f_sexo").value = p.sexo||"";
+      $("#f_duenio").value = p.duenio||"";
+      $("#f_tel").value = p.telefono||"";
+      $("#f_email").value = p.email||"";
+      $("#f_hist").value = p.historial||"";
+    }
 
-    client.on("reconnect", ()=>setStatus("Reconectando…", true));
-    client.on("close", ()=>setStatus("Desconectado", false));
-    client.on("error", (err)=>log("[MQTT] error: " + err.message));
-    client.on("message", (topic, payload) => {
-      if (topic !== topicAck) return;
-      let msg; try{ msg = JSON.parse(payload.toString()); }catch{ return; }
-      const corr = msg.corr || "";
-      if (pending.has(corr)) {
-        clearTimeout(pending.get(corr).to);
-        pending.get(corr).resolve(msg);
-        pending.delete(corr);
+    // ===== Auth =====
+    async function refreshSession(){
+      const { data: { session } } = await supa.auth.getSession();
+      sessionUser = session?.user || null;
+      if(sessionUser){
+        sessionState.textContent = "Sesión: " + (sessionUser.email || sessionUser.id);
+        btnLogin.classList.add("hide");
+        btnLogout.classList.remove("hide");
+        setOnline(true);
+      }else{
+        sessionState.textContent = "Sesión: desconectado";
+        btnLogin.classList.remove("hide");
+        btnLogout.classList.add("hide");
+        setOnline(false);
       }
-      log("ACK: " + JSON.stringify(msg));
-    });
+    }
+    btnLogin.onclick = async ()=>{
+      const email = prompt("Correo del doctor (recibirás enlace de acceso):");
+      if(!email) return;
+      const { error } = await supa.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.href } });
+      if(error){ alert("Error al iniciar sesión: " + error.message); return; }
+      alert("Revisa tu correo y abre el enlace para completar el acceso.");
+    };
+    btnLogout.onclick = async ()=>{ await supa.auth.signOut(); };
 
-    // ---------- Publicar comando con corr + timeout ----------
-    const pending = new Map();
-    function publishWrite(id, nombre, url) {
-      const corr = "c_" + Date.now().toString(36) + Math.random().toString(16).slice(2,6);
-      const payload = { id:Number(id), nombre:String(nombre), url:String(url), corr };
-      return new Promise((resolve, reject)=>{
-        const to = setTimeout(()=>{ pending.delete(corr); reject(new Error("Timeout esperando ACK")); }, 15000);
-        pending.set(corr, { resolve, reject, to });
-        client.publish(topicCmd, JSON.stringify(payload), { qos:1 }, (err)=>{
-          if (err){ clearTimeout(to); pending.delete(corr); reject(err); }
-          else { log("→ CMD: " + JSON.stringify(payload)); }
-        });
+    supa.auth.onAuthStateChange(async ()=>{ await refreshSession(); });
+
+    // ===== Storage: subir foto y devolver URL pública
+    async function uploadPhoto(file){
+      if(!file) return null;
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `mascotas/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supa.storage.from("fotos").upload(path, file, { upsert: false });
+      if(upErr){ showLog("⚠️ Error al subir foto: " + upErr.message); return null; }
+      const { data } = supa.storage.from("fotos").getPublicUrl(path);
+      return data.publicUrl || null;
+    }
+
+    // ===== CRUD =====
+    async function saveNew(){
+      if(!sessionUser){ alert("Inicia sesión para guardar."); return; }
+      btnSave.disabled = true;
+      const fotoFile = $("#f_foto").files[0];
+      const foto_url = await uploadPhoto(fotoFile);
+
+      const payload = {
+        nombre: $("#f_nombre").value.trim(),
+        raza: $("#f_raza").value.trim(),
+        edad: $("#f_edad").value ? Number($("#f_edad").value) : null,
+        sexo: $("#f_sexo").value,
+        duenio: $("#f_duenio").value.trim(),
+        telefono: $("#f_tel").value.trim(),
+        email: $("#f_email").value.trim(),
+        historial: $("#f_hist").value.trim(),
+        foto_url: foto_url,
+        owner_id: sessionUser.id   // RLS: pertenece al usuario autenticado
+      };
+      if(!payload.nombre){ alert("Nombre es obligatorio"); btnSave.disabled=false; return; }
+
+      const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
+      if(error){ showLog("✖ Insert error: " + error.message); }
+      else { showLog("✅ Guardado. ID: " + data.id); current = { id: data.id, ...payload }; btnUpdate.disabled=false; btnDelete.disabled=false; }
+      btnSave.disabled = false;
+    }
+
+    async function updateCurrent(){
+      if(!sessionUser || !current){ return; }
+      btnUpdate.disabled = true;
+
+      let foto_url = current.foto_url || null;
+      const fotoFile = $("#f_foto").files[0];
+      if(fotoFile){ // si suben nueva foto, reemplazamos URL
+        const up = await uploadPhoto(fotoFile);
+        if(up) foto_url = up;
+      }
+
+      const payload = {
+        nombre: $("#f_nombre").value.trim(),
+        raza: $("#f_raza").value.trim(),
+        edad: $("#f_edad").value ? Number($("#f_edad").value) : null,
+        sexo: $("#f_sexo").value,
+        duenio: $("#f_duenio").value.trim(),
+        telefono: $("#f_tel").value.trim(),
+        email: $("#f_email").value.trim(),
+        historial: $("#f_hist").value.trim(),
+        foto_url: foto_url
+      };
+
+      const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
+      if(error){ showLog("✖ Update error: " + error.message); }
+      else { showLog("✅ Actualizado ID " + current.id); }
+      btnUpdate.disabled = false;
+    }
+
+    async function deleteCurrent(){
+      if(!sessionUser || !current) return;
+      if(!confirm("¿Eliminar registro ID " + current.id + "?")) return;
+      btnDelete.disabled = true;
+      const { error } = await supa.from("mascotas").delete().eq("id", current.id);
+      if(error){ showLog("✖ Delete error: " + error.message); btnDelete.disabled=false; return; }
+      showLog("🗑️ Eliminado ID " + current.id);
+      clearForm();
+      results.innerHTML = "";
+      btnDelete.disabled = false;
+    }
+
+    async function search(){
+      const q = $("#q").value.trim();
+      results.innerHTML = "";
+      if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
+
+      // Si hay sesión, buscamos en tabla completa (RLS filtra del dueño si lo configuraste así).
+      // Si quieres que doctores vean TODO, tu policy SELECT debe ser USING (true).
+      const from = "mascotas";
+      const { data, error } = await supa
+        .from(from)
+        .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
+        .or(`id.eq.${q},nombre.ilike.%${q}%`)
+        .order("id", { ascending:false })
+        .limit(20);
+
+      if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+      if(!data || data.length===0){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
+
+      data.forEach(p=>{
+        const card = document.createElement("div");
+        card.className = "item";
+        const foto = p.foto_url || "img/perrito.jpg";
+        card.innerHTML = `
+          <img src="${foto}" alt="${p.nombre}">
+          <div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <strong>${p.nombre}</strong>
+              <span class="pill">ID: ${p.id}</span>
+              <span class="muted">${p.raza || ""} ${p.sexo?(" · "+p.sexo):""}</span>
+            </div>
+            <div class="muted">Dueño: ${p.duenio || "—"}</div>
+          </div>
+        `;
+        card.style.cursor = "pointer";
+        card.onclick = ()=>{ current = p; fillForm(p); btnUpdate.disabled=false; btnDelete.disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
+        results.appendChild(card);
       });
     }
 
-    // ---------- UI handlers ----------
-    $("#btn").addEventListener("click", async ()=>{
-      $("#btn").disabled = true;
-      try{
-        const id = $("#id").value;
-        const nombre = $("#nombre").value.trim();
-        const url = $("#url").value.trim();
-        if (!id || !nombre || !url) throw new Error("Completa ID, nombre y URL");
-        const ack = await publishWrite(id, nombre, url);
-        setStatus(ack.ok ? "Escrito (NFC)" : "Error NFC", ack.ok);
-      }catch(e){
-        log("✖ " + e.message);
-        setStatus("Error", false);
-      }finally{
-        $("#btn").disabled = false;
-      }
-    });
+    // Handlers
+    $("#btnSave").onclick = saveNew;
+    $("#btnUpdate").onclick = updateCurrent;
+    $("#btnDelete").onclick = deleteCurrent;
+    $("#btnSearch").onclick = search;
+    $("#btnClear").onclick = ()=>{ clearForm(); results.innerHTML=""; logEl.textContent=""; logEl.classList.add("hide"); };
+    $("#q").addEventListener("keydown", e=>{ if(e.key==="Enter") $("#btnSearch").click(); });
 
-    $("#btnPing").addEventListener("click", ()=>{
-      log("RSSI no disponible en navegador; prueba publicar y esperar ACK.");
-    });
+    // Init
+    document.getElementById("y").textContent = new Date().getFullYear();
+    refreshSession();
   </script>
 </body>
 </html>
