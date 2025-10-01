@@ -60,7 +60,10 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
- <script>
+ <script type="module">
+  import { getSupa } from "./main.js";
+  const supa = await getSupa();
+
   // ======= UI helpers =======
   const $ = (s)=>document.querySelector(s);
   const results = $("#results");
