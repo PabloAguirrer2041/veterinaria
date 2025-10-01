@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cliente · Buscar mascota</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#f6f9fb; --card:#fff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4;
+      --shadow: 0 10px 30px rgba(16,24,40,.06);
+    }
+    *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .container{max-width:900px;margin:auto;padding:20px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px}
+    h1{margin:0 0 12px}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input[type="search"]{flex:1;min-width:220px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;outline:none}
+    input[type="search"]:focus{border-color:#93d9d7;box-shadow:0 0 0 3px rgba(14,165,160,.15)}
+    .btn{border:1px solid var(--line);background:#fff;padding:12px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn--brand{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn--ghost{background:#fff;color:var(--brand);border-color:var(--brand)}
+    .results{margin-top:16px;display:grid;gap:12px}
+    .pet{display:grid;grid-template-columns:88px 1fr;gap:14px;align-items:center}
+    .pet img{width:88px;height:88px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef4ff;color:#305fbd;font-weight:600;font-size:12px}
+    .guarded{margin-top:8px;padding:10px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;color:#334155}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .link{color:var(--brand);font-weight:700;text-decoration:none}
+    .right{display:flex;gap:8px;align-items:center}
+    .hide{display:none}
+    footer{padding:22px 0;color:#6b7280;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <a class="link" href="index.html">← Volver al menú</a>
+      <div class="right">
+        <span id="sessionState" class="muted">Sesión: visitante</span>
+        <button id="btnLogin" class="btn btn--ghost">Iniciar sesión</button>
+        <button id="btnLogout" class="btn hide">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h1>Buscar mascota</h1>
+      <p class="muted">Escribe el <strong>nombre</strong> o <strong>ID</strong> de la mascota.</p>
+      <div class="row" style="margin-top:8px">
+        <input id="q" type="search" placeholder="Ej. 'Luna' o 'ID 1023'">
+        <button id="btnSearch" class="btn btn--brand">Buscar</button>
+      </div>
+
+      <div id="results" class="results"></div>
+    </div>
+
+    <footer>© <span id="y"></span> TuVet</footer>
+  </div>
+
+ <script type="module">
+  import { getSupa } from "./main.js";
+  const supa = await getSupa();
+
+  // ======= UI helpers =======
+  const $ = (s)=>document.querySelector(s);
+  const results = $("#results");
+  const sessionState = $("#sessionState");
+  const btnLogin = $("#btnLogin");
+  const btnLogout = $("#btnLogout");
+
+  // Render (usa misma tarjeta que ya tenías)
+  function render(items){
+    results.innerHTML = "";
+    if(!items || items.length===0){
+      results.innerHTML = `<div class="muted">Sin resultados.</div>`;
+      return;
+    }
+    items.forEach(p=>{
+      const wrap = document.createElement("div");
+      wrap.className = "card";
+      const foto = p.foto_url || "img/perrito.jpg";
+      const publico = !window.__SESSION_OK__ ; // visitante si no hay sesión real
+
+      wrap.innerHTML = `
+        <div class="pet">
+          <img src="${foto}" alt="${p.nombre}">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <strong>${p.nombre}</strong>
+              <span class="pill">${p.especie || ''}${p.raza?(' · '+p.raza):''}</span>
+              <span class="muted">ID: ${p.id}</span>
+            </div>
+            ${publico ? `
+              <div class="guarded" style="margin-top:8px">
+                🔒 Datos del dueño e historial ocultos. <button class="btn btn--ghost" id="askLogin-${p.id}">Inicia sesión</button>
+              </div>
+            ` : `
+              <div style="margin-top:8px">
+                <div><strong>Dueño:</strong> ${p.owner_name || '—'}</div>
+                <div><strong>Teléfono:</strong> ${p.owner_phone || '—'}</div>
+                <div><strong>Dirección:</strong> ${p.owner_address || '—'}</div>
+                <div class="muted" style="margin-top:6px">
+                  <strong>Vacunas:</strong> ${p.vacunas || '—'} · Último check: ${p.ultimo_check || '—'}
+                </div>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+      results.appendChild(wrap);
+      // botón inline para iniciar sesión
+      wrap.querySelector(`#askLogin-${p.id}`)?.addEventListener("click", doLogin);
+    });
+  }
+
+  // ======= Supabase Auth =======
+  window.__SESSION_OK__ = false;
+
+  async function refreshSession(){
+    const { data: { session } } = await supa.auth.getSession();
+    window.__SESSION_OK__ = !!session;
+    if (session){
+      sessionState.textContent = "Sesión: dueño/a";
+      btnLogin.classList.add("hide");
+      btnLogout.classList.remove("hide");
+    }else{
+      sessionState.textContent = "Sesión: visitante";
+      btnLogin.classList.remove("hide");
+      btnLogout.classList.add("hide");
+    }
+  }
+
+  // Magic link por email (rápido y sin contraseñas)
+  async function doLogin(){
+    const email = prompt("Escribe tu correo para iniciar sesión (recibirás un enlace):");
+    if(!email) return;
+    const { error } = await supa.auth.signInWithOtp({ email, options:{ emailRedirectTo: window.location.href } });
+    if(error){ alert("Error al iniciar sesión: " + error.message); return; }
+    alert("Revisa tu correo y abre el enlace para completar el acceso.");
+  }
+
+  async function doLogout(){
+    await supa.auth.signOut();
+  }
+
+  btnLogin.onclick = doLogin;
+  btnLogout.onclick = doLogout;
+
+  supa.auth.onAuthStateChange(async (_evt, _session) => {
+    await refreshSession();
+  });
+
+  // ======= Búsqueda en Supabase =======
+  // Visitante -> vista pública pets_public (solo datos no sensibles)
+  // Logueado  -> tabla pets (RLS: solo sus mascotas)
+  async function fetchPet(query){
+  const q = String(query||"").trim();
+  if(!q) return [];
+
+  if (window.__SESSION_OK__) {
+    // Usuario logueado → tabla completa
+    const { data, error } = await supa
+      .from('mascotas')
+      .select('id, nombre, raza, edad, sexo, foto_url, duenio, telefono, email, historial')
+      .or(`id.eq.${q},nombre.ilike.%${q}%`)
+      .limit(20);
+    if (error) { console.error(error); return []; }
+    return data || [];
+  } else {
+    // Visitante → vista pública (sin sensibles)
+    const { data, error } = await supa
+      .from('mascotas_public')
+      .select('id, nombre, raza, edad, sexo, foto_url')
+      .or(`id.eq.${q},nombre.ilike.%${q}%`)
+      .limit(20);
+    if (error) { console.error(error); return []; }
+    return data || [];
+  }
+}
+
+
+  // ======= UI handlers =======
+  $("#btnSearch").onclick = async ()=>{
+    const q = $("#q").value;
+    const data = await fetchPet(q);
+    render(data);
+  };
+  $("#q").addEventListener("keydown", e=>{
+    if(e.key==="Enter") $("#btnSearch").click();
+  });
+
+  // ======= Init =======
+  document.getElementById("y").textContent = new Date().getFullYear();
+  refreshSession();
+</script>
