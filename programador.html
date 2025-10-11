@@ -4,6 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Panel del Doctor | Veterinaria</title>
+
+  <!-- CSP: habilita fetch a *.supabase.co -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' https: data: blob:;
+    img-src 'self' https: data:;
+    script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval';
+    style-src 'self' 'unsafe-inline';
+    connect-src 'self' https://*.supabase.co https://*.supabase.in;
+    frame-ancestors 'self';
+  ">
+
   <style>
     :root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--brand:#10b981;--brand2:#059669;--danger:#ef4444}
     *{box-sizing:border-box}
@@ -32,13 +43,12 @@
 </head>
 <body>
   <header>
-    <img src="./images/vet.png" alt="Vet" width="28" height="28" />
     <h1>Panel del Doctor</h1>
     <span id="status" class="muted status"></span>
   </header>
 
   <main class="grid g2">
-    <!-- TARJETA LOGIN -->
+    <!-- LOGIN -->
     <section class="card" id="cardLogin">
       <h2>Iniciar sesión</h2>
       <form id="loginForm" class="grid">
@@ -49,43 +59,38 @@
       <p class="muted" style="margin-top:8px">¿Olvidaste tu contraseña? Revisa el panel de Supabase o contacta al admin.</p>
     </section>
 
-    <!-- TARJETA SESIÓN -->
-    <section class="card" id="cardSession" class="hidden">
+    <!-- SESIÓN -->
+    <section class="card hidden" id="cardSession">
       <h2>Sesión</h2>
       <p id="sessionEmail" class="muted">Sin sesión</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button id="btnLogout" type="button">Cerrar sesión</button>
-        <button id="btnReload" type="button" title="Forzar rehidratación">Revisar sesión</button>
+        <button id="btnReload" type="button" title="Rehidratar">Revisar sesión</button>
       </div>
     </section>
 
-    <!-- TARJETA BUSCADOR -->
+    <!-- BUSCADOR -->
     <section class="card hidden" id="cardSearch">
       <h2>Buscador de perros</h2>
       <div class="grid g3">
-        <input id="qNombre" placeholder="Buscar por nombre (p. ej. 'firulais')" />
+        <input id="qNombre" placeholder="Nombre (p. ej. 'firulais')" />
         <select id="qRaza">
           <option value="">Todas las razas</option>
-          <option>Labrador</option>
-          <option>Chihuahua</option>
-          <option>Golden Retriever</option>
-          <option>Pitbull</option>
-          <option>Otro</option>
+          <option>Labrador</option><option>Chihuahua</option><option>Golden Retriever</option>
+          <option>Pitbull</option><option>Otro</option>
         </select>
         <button id="btnBuscar" type="button">Buscar</button>
       </div>
       <div style="margin-top:12px" class="muted" id="count"></div>
       <div style="overflow:auto;margin-top:10px">
         <table id="tablaPerros">
-          <thead>
-            <tr><th>Nombre</th><th>Raza</th><th>Edad</th><th>ID</th><th>Acciones</th></tr>
-          </thead>
+          <thead><tr><th>Nombre</th><th>Raza</th><th>Edad</th><th>ID</th><th>Acciones</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </section>
 
-    <!-- TARJETA ALTA / EDICIÓN -->
+    <!-- ALTA/EDICIÓN -->
     <section class="card hidden" id="cardForm">
       <h2 id="formTitle">Agregar perro</h2>
       <form id="perroForm" class="grid g3">
@@ -99,66 +104,9 @@
     </section>
   </main>
 
-  <!-- Librería Supabase + tu singleton + lógica -->
+  <!-- Lib Supabase + tu singleton + lógica -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
-
-  <!-- main.js: ajusta URL y ANON KEY dentro -->
-  <script>
-  // === main.js embebido (si prefieres, colócalo en ./main.js y enlázalo con <script src="./main.js" defer>) ===
-  (function(){
-    // TODO: AJUSTA ESTOS DOS VALORES A TU PROYECTO
-    const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
-
-    let client = null;
-    let creating = null;
-
-    window.getSupa = async function(){
-      if (client) return client;
-      if (creating) return creating;
-
-      creating = (async ()=>{
-        let tries = 0;
-        while (!window.supabase && tries < 100){ await new Promise(r=>setTimeout(r,50)); tries++; }
-        if (!window.supabase) throw new Error("No se pudo cargar @supabase/supabase-js");
-
-        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, storageKey:"vetapp-auth-v1" }
-        });
-
-        try {
-          const { data:{ session } } = await client.auth.getSession();
-          if (window.onAppSession) window.onAppSession(session?.user || null);
-        } catch {}
-
-        client.auth.onAuthStateChange((_evt, sess)=>{
-          if (window.onAppSession) window.onAppSession(sess?.user || null);
-        });
-
-        window.addEventListener("pageshow", async ()=>{
-          try {
-            const { data:{ session } } = await client.auth.getSession();
-            if (window.onAppSession) window.onAppSession(session?.user || null);
-          } catch {}
-        });
-        document.addEventListener("visibilitychange", async ()=>{
-          if (!document.hidden){
-            try {
-              const { data:{ session } } = await client.auth.getSession();
-              if (window.onAppSession) window.onAppSession(session?.user || null);
-            } catch {}
-          }
-        });
-
-        return client;
-      })();
-
-      return creating;
-    };
-  })();
-  </script>
-
-  <!-- programador.js -->
+  <script src="./main.js" defer></script>
   <script src="./programador.js" defer></script>
 </body>
 </html>

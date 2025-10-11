@@ -3,8 +3,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const supa = await getSupa();
 
   // Config: ajusta a tu tabla/columnas reales
-  const TABLE_PERROS = 'perros'; // ← CAMBIA si tu tabla tiene otro nombre
-  const COLS = { id: 'id', nombre: 'nombre', raza: 'raza', edad: 'edad' }; // ← ajusta si tus columnas difieren
+  const TABLE_PERROS = 'perros';
+  const COLS = { id: 'id', nombre: 'nombre', raza: 'raza', edad: 'edad' };
 
   // UI refs
   const statusEl = qs('#status');
@@ -36,8 +36,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function qs(s){ return document.querySelector(s); }
   function show(el, on=true){ el?.classList[on?'remove':'add']('hidden'); }
   function setStatus(msg){ statusEl.textContent = msg; }
+  function esc(v){ return String(v ?? '').replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s])); }
 
-  // ==== SESIÓN ====
+  // SESIÓN (notificado por main.js)
   window.onAppSession = (user) => {
     if (user){
       setStatus(`Sesión activa: ${user.email || 'sin email'}`);
@@ -46,7 +47,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       show(cardSession, true);
       show(cardSearch, true);
       show(cardForm, true);
-      // Carga inicial
       buscar();
     } else {
       setStatus('Sin sesión');
@@ -55,43 +55,50 @@ document.addEventListener('DOMContentLoaded', async () => {
       show(cardSession, false);
       show(cardSearch, false);
       show(cardForm, false);
-      // Limpia tabla
       tbody.innerHTML = '';
       countEl.textContent = '';
     }
   };
 
-  // Login
+  // LOGIN con manejo de errores explícito
   loginForm?.addEventListener('submit', async (e)=>{
     e.preventDefault();
     const email = qs('#docEmail').value.trim();
     const password = qs('#docPwd').value.trim();
-    const { error } = await supa.auth.signInWithPassword({ email, password });
-    if (error) alert('Error: ' + error.message);
+    try {
+      const { error, data } = await supa.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error("Auth error:", error);
+        alert("Auth error: " + (error.message || "ver consola"));
+        return;
+      }
+      console.log("Auth OK:", data);
+    } catch (err) {
+      console.error("Network/Fetch error:", err);
+      alert("Network/Fetch error: " + (err?.message || err));
+    }
   });
 
-  // Logout
+  // LOGOUT
   btnLogout?.addEventListener('click', async ()=>{
     await supa.auth.signOut();
   });
 
-  // Forzar rehidratación
+  // Rehidratar on-demand
   btnReload?.addEventListener('click', async ()=>{
     const { data:{ session } } = await supa.auth.getSession();
     window.onAppSession?.(session?.user || null);
   });
 
-  // ==== BUSCADOR ====
+  // BUSCADOR
   btnBuscar?.addEventListener('click', buscar);
   qNombre?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') buscar(); });
 
   async function buscar(){
     try {
       let query = supa.from(TABLE_PERROS).select('*').order(COLS.nombre, { ascending: true });
-
       const nombre = (qNombre?.value || '').trim();
       const raza = (qRaza?.value || '').trim();
-
       if (nombre) query = query.ilike(COLS.nombre, `%${nombre}%`);
       if (raza)   query = query.eq(COLS.raza, raza);
 
@@ -101,6 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderTabla(data || []);
       countEl.textContent = `${(data||[]).length} resultado(s)`;
     } catch (err){
+      console.error('Error buscar:', err);
       alert('Error al buscar: ' + err.message);
     }
   }
@@ -129,9 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function esc(v){ return String(v ?? '').replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s])); }
-
-  // Acciones tabla (editar / borrar)
+  // Acciones de tabla
   tbody.addEventListener('click', async (e)=>{
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -139,7 +145,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const act = btn.dataset.act;
 
     if (act === 'edit'){
-      // Cargar registro y pasar al formulario
       const { data, error } = await supa.from(TABLE_PERROS).select('*').eq(COLS.id, id).single();
       if (error){ alert('No se pudo cargar: ' + error.message); return; }
       formTitle.textContent = 'Editar perro';
@@ -191,11 +196,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     perroEdad.value = '';
   }
 
-  // Intento inicial de rehidratación (por si llegas logueado)
+  // Intento inicial de sesión (por si refrescaste logueado)
   try {
     const { data:{ session } } = await supa.auth.getSession();
     window.onAppSession?.(session?.user || null);
-  } catch {
+  } catch (e) {
     setStatus('No se pudo recuperar la sesión');
+    console.error(e);
   }
 });
