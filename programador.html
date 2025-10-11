@@ -1,140 +1,164 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Panel del Doctor | Veterinaria</title>
-
   <style>
-    body {
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: #f9fafb;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
-    main {
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 420px;
-      padding: 30px;
-      text-align: center;
-    }
-    h1 {
-      color: #1f2937;
-      margin-bottom: 20px;
-    }
-    input {
-      width: 90%;
-      padding: 10px;
-      margin: 8px 0;
-      border-radius: 5px;
-      border: 1px solid #d1d5db;
-      font-size: 15px;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 15px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      background-color: #10b981;
-      color: white;
-      margin-top: 10px;
-    }
-    button:hover {
-      background-color: #059669;
-    }
-    #btnLogout {
-      background-color: #ef4444;
-    }
-    #btnLogout:hover {
-      background-color: #dc2626;
-    }
-    #status {
-      margin-top: 20px;
-      color: #374151;
-      font-size: 14px;
-    }
+    :root{--bg:#f8fafc;--fg:#0f172a;--muted:#64748b;--brand:#10b981;--brand2:#059669;--danger:#ef4444}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;background:var(--bg);color:var(--fg)}
+    header{padding:16px 20px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:12px}
+    header h1{font-size:18px;margin:0}
+    main{max-width:1100px;margin:24px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+    .grid{display:grid;gap:16px}
+    .g2{grid-template-columns: 1fr 1fr}
+    .g3{grid-template-columns: 1fr 1fr 1fr}
+    @media (max-width: 900px){.g2,.g3{grid-template-columns:1fr}}
+    input,select,button,textarea{padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px}
+    input,select,textarea{width:100%}
+    button{background:var(--brand);color:#fff;cursor:pointer}
+    button:hover{background:var(--brand2)}
+    .btn-danger{background:var(--danger)}
+    .muted{color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}
+    th{background:#f1f5f9}
+    .row-actions{display:flex;gap:8px}
+    .hidden{display:none !important}
+    .status{font-size:13px}
   </style>
 </head>
 <body>
-
-  <main>
+  <header>
+    <img src="./images/vet.png" alt="Vet" width="28" height="28" />
     <h1>Panel del Doctor</h1>
+    <span id="status" class="muted status"></span>
+  </header>
 
-    <!-- FORMULARIO DE LOGIN -->
-    <form id="loginForm">
-      <input id="docEmail" type="email" placeholder="Correo electrónico" required>
-      <input id="docPwd" type="password" placeholder="Contraseña" required>
-      <button id="btnLogin" type="submit">Iniciar sesión</button>
-    </form>
+  <main class="grid g2">
+    <!-- TARJETA LOGIN -->
+    <section class="card" id="cardLogin">
+      <h2>Iniciar sesión</h2>
+      <form id="loginForm" class="grid">
+        <input id="docEmail" type="email" placeholder="Correo del doctor" autocomplete="email" required />
+        <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password" required />
+        <button id="btnLogin" type="submit">Entrar</button>
+      </form>
+      <p class="muted" style="margin-top:8px">¿Olvidaste tu contraseña? Revisa el panel de Supabase o contacta al admin.</p>
+    </section>
 
-    <!-- BOTÓN DE CIERRE DE SESIÓN -->
-    <button id="btnLogout" type="button" style="display:none;">Cerrar sesión</button>
+    <!-- TARJETA SESIÓN -->
+    <section class="card" id="cardSession" class="hidden">
+      <h2>Sesión</h2>
+      <p id="sessionEmail" class="muted">Sin sesión</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button id="btnLogout" type="button">Cerrar sesión</button>
+        <button id="btnReload" type="button" title="Forzar rehidratación">Revisar sesión</button>
+      </div>
+    </section>
 
-    <div id="status">Esperando autenticación...</div>
+    <!-- TARJETA BUSCADOR -->
+    <section class="card hidden" id="cardSearch">
+      <h2>Buscador de perros</h2>
+      <div class="grid g3">
+        <input id="qNombre" placeholder="Buscar por nombre (p. ej. 'firulais')" />
+        <select id="qRaza">
+          <option value="">Todas las razas</option>
+          <option>Labrador</option>
+          <option>Chihuahua</option>
+          <option>Golden Retriever</option>
+          <option>Pitbull</option>
+          <option>Otro</option>
+        </select>
+        <button id="btnBuscar" type="button">Buscar</button>
+      </div>
+      <div style="margin-top:12px" class="muted" id="count"></div>
+      <div style="overflow:auto;margin-top:10px">
+        <table id="tablaPerros">
+          <thead>
+            <tr><th>Nombre</th><th>Raza</th><th>Edad</th><th>ID</th><th>Acciones</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TARJETA ALTA / EDICIÓN -->
+    <section class="card hidden" id="cardForm">
+      <h2 id="formTitle">Agregar perro</h2>
+      <form id="perroForm" class="grid g3">
+        <input type="hidden" id="perroId" />
+        <input id="perroNombre" placeholder="Nombre" required />
+        <input id="perroRaza" placeholder="Raza" />
+        <input id="perroEdad" type="number" min="0" placeholder="Edad (años)" />
+        <button id="btnGuardar" type="submit">Guardar</button>
+        <button id="btnCancelar" type="button">Cancelar</button>
+      </form>
+    </section>
   </main>
 
-  <!-- === SCRIPTS === -->
+  <!-- Librería Supabase + tu singleton + lógica -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
-  <script src="./main.js" defer></script>
 
+  <!-- main.js: ajusta URL y ANON KEY dentro -->
   <script>
-  // programador.js integrado (puedes separarlo si prefieres mantener el archivo)
-  document.addEventListener('DOMContentLoaded', async ()=>{
-    const supa = await getSupa();
+  // === main.js embebido (si prefieres, colócalo en ./main.js y enlázalo con <script src="./main.js" defer>) ===
+  (function(){
+    // TODO: AJUSTA ESTOS DOS VALORES A TU PROYECTO
+    const SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
+    const SUPABASE_ANON_KEY = "TU_ANON_KEY";
 
-    const status = document.querySelector("#status");
-    const btnLogin = document.querySelector("#btnLogin");
-    const btnLogout = document.querySelector("#btnLogout");
-    const form = document.querySelector("#loginForm");
+    let client = null;
+    let creating = null;
 
-    // Callback global: actualiza la UI según el estado de sesión
-    window.onAppSession = (user)=>{
-      if (user){
-        status.textContent = "Sesión activa: " + (user.email || "Usuario sin email");
-        form.style.display = "none";
-        btnLogout.style.display = "inline-block";
-      } else {
-        status.textContent = "Sin sesión activa. Por favor inicia sesión.";
-        form.style.display = "block";
-        btnLogout.style.display = "none";
-      }
+    window.getSupa = async function(){
+      if (client) return client;
+      if (creating) return creating;
+
+      creating = (async ()=>{
+        let tries = 0;
+        while (!window.supabase && tries < 100){ await new Promise(r=>setTimeout(r,50)); tries++; }
+        if (!window.supabase) throw new Error("No se pudo cargar @supabase/supabase-js");
+
+        client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, storageKey:"vetapp-auth-v1" }
+        });
+
+        try {
+          const { data:{ session } } = await client.auth.getSession();
+          if (window.onAppSession) window.onAppSession(session?.user || null);
+        } catch {}
+
+        client.auth.onAuthStateChange((_evt, sess)=>{
+          if (window.onAppSession) window.onAppSession(sess?.user || null);
+        });
+
+        window.addEventListener("pageshow", async ()=>{
+          try {
+            const { data:{ session } } = await client.auth.getSession();
+            if (window.onAppSession) window.onAppSession(session?.user || null);
+          } catch {}
+        });
+        document.addEventListener("visibilitychange", async ()=>{
+          if (!document.hidden){
+            try {
+              const { data:{ session } } = await client.auth.getSession();
+              if (window.onAppSession) window.onAppSession(session?.user || null);
+            } catch {}
+          }
+        });
+
+        return client;
+      })();
+
+      return creating;
     };
-
-    // Evento de inicio de sesión
-    form?.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const email = document.querySelector("#docEmail").value.trim();
-      const password = document.querySelector("#docPwd").value.trim();
-
-      const { error } = await supa.auth.signInWithPassword({ email, password });
-      if (error) {
-        alert("Error: " + error.message);
-      }
-    });
-
-    // Evento de cierre de sesión
-    btnLogout?.addEventListener('click', async ()=>{
-      await supa.auth.signOut();
-      status.textContent = "Cerraste sesión correctamente.";
-    });
-
-    // Al cargar, intenta restaurar sesión
-    try {
-      const { data:{ session } } = await supa.auth.getSession();
-      window.onAppSession?.(session?.user || null);
-    } catch {
-      status.textContent = "No se pudo recuperar la sesión.";
-    }
-  });
+  })();
   </script>
 
+  <!-- programador.js -->
+  <script src="./programador.js" defer></script>
 </body>
 </html>
