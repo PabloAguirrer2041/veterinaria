@@ -1,81 +1,67 @@
-// main.js — inicializa Supabase una sola vez con multi-fallback robusto
-const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
+// main.js — versión corregida con manejo sólido de sesión
+(function(){
+  // === AJUSTA ESTOS DOS VALORES A TU PROYECTO SUPABASE ===
+  const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
+  // ========================================================
 
-let supa = null;         // cliente compartido
-let supaMod = null;      // módulo ESM
-let creating = null;     // promesa en curso
-const listeners = new Set();
-let authBound = false;
+  let client = null;
+  let creating = null;
 
-export function ready(fn){
-  if (document.readyState !== "loading") fn();
-  else document.addEventListener("DOMContentLoaded", fn, { once:true });
-}
+  // Devuelve la instancia única de Supabase (singleton)
+  window.getSupa = async function(){
+    if (client) return client;
+    if (creating) return creating;
 
-async function tryImport(url){ try{ return await import(/* @vite-ignore */ url); }catch{ return null; } }
-async function loadUMD(){
-  if (globalThis.supabase) return globalThis.supabase;
-  const urls = [
-    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js",
-    "https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"
-  ];
-  for (const u of urls){
-    const ok = await new Promise(res=>{
-      const s=document.createElement("script"); s.src=u; s.defer=true;
-      s.onload=()=>res(true); s.onerror=()=>res(false); document.head.appendChild(s);
-    });
-    if (ok && globalThis.supabase) return globalThis.supabase;
-  }
-  throw new Error("No se pudo cargar supabase-js (UMD).");
-}
+    creating = (async ()=>{
+      // Espera a que cargue la librería UMD
+      let tries = 0;
+      while (!window.supabase && tries < 100) { 
+        await new Promise(r=>setTimeout(r,50)); 
+        tries++; 
+      }
+      if (!window.supabase) throw new Error("No se pudo cargar @supabase/supabase-js");
 
-export async function getSupa(){
-  if (supa) return supa;
-  if (creating) return creating;
-
-  creating = (async ()=>{
-    // ESM por CDN (con fallback a 3 orígenes) y si falla, UMD
-    supaMod = await tryImport("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/+esm")
-           || await tryImport("https://unpkg.com/@supabase/supabase-js@2.45.6/+esm")
-           || await tryImport("https://esm.sh/@supabase/supabase-js@2.45.6");
-    let createClient;
-
-    if (supaMod?.createClient) {
-      createClient = supaMod.createClient;
-    } else {
-      const umd = await loadUMD();           // window.supabase
-      createClient = umd.createClient.bind(umd);
-    }
-
-    supa = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
-    });
-
-    if (!authBound){
-      supa.auth.onAuthStateChange(async ()=>{
-        const { data:{ session } } = await supa.auth.getSession();
-        const user = session?.user || null;
-        for (const cb of [...listeners]) try{ cb(user); }catch{}
+      client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storageKey: "vetapp-auth-v1"
+        }
       });
-      authBound = true;
-    }
 
-    // primer “emit”
-    const { data:{ session } } = await supa.auth.getSession();
-    const user = session?.user || null;
-    for (const cb of [...listeners]) try{ cb(user); }catch{}
+      // Hidrata sesión al arrancar
+      try {
+        const { data:{ session } } = await client.auth.getSession();
+        if (window.onAppSession) window.onAppSession(session?.user || null);
+      } catch {}
 
-    return supa;
-  })();
+      // Detecta cambios de autenticación
+      client.auth.onAuthStateChange((_evt, sess)=>{
+        if (window.onAppSession) window.onAppSession(sess?.user || null);
+      });
 
-  return creating;
-}
+      // Rehidrata al volver a la página o pestaña visible
+      window.addEventListener("pageshow", async ()=>{
+        try {
+          const { data:{ session } } = await client.auth.getSession();
+          if (window.onAppSession) window.onAppSession(session?.user || null);
+        } catch {}
+      });
 
-export function onSession(cb){
-  listeners.add(cb);
-  if (supa) supa.auth.getSession().then(({data:{session}})=>cb(session?.user||null)).catch(()=>{});
-  return ()=>listeners.delete(cb);
-}
+      document.addEventListener("visibilitychange", async ()=>{
+        if (!document.hidden){
+          try {
+            const { data:{ session } } = await client.auth.getSession();
+            if (window.onAppSession) window.onAppSession(session?.user || null);
+          } catch {}
+        }
+      });
 
-export const idToEmail = (id)=>`${String(id||"").trim().toLowerCase()}@doctores.local`;
+      return client;
+    })();
+
+    return creating;
+  };
+})();
