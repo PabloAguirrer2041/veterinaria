@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Doctor · Registro de mascotas</title>
+
+  <!-- Evitar cachear copias viejas -->
+  <meta http-equiv="Cache-Control" content="no-store, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root{ --bg:#f6f9fb; --card:#ffffff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4; --shadow:0 10px 30px rgba(16,24,40,.06) }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .container{max-width:980px;margin:auto;padding:20px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .link{color:var(--brand);font-weight:700;text-decoration:none}
+    .muted{color:var(--muted)}
+    .btn{border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn--brand{background:var(--brand);border-color:var(--brand);color:#fff}
+    .btn--danger{background:#ef4444;border-color:#ef4444;color:#fff}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px}
+    h1{margin:0 0 10px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    label{font-size:12px;color:#5b6b83}
+    input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:#93d9d7;box-shadow:0 0 0 3px rgba(14,165,160,.15)}
+    textarea{min-height:110px;resize:vertical}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .results{margin-top:16px;display:grid;gap:10px}
+    .item{display:grid;grid-template-columns:72px 1fr;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
+    .item img{width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef4ff;color:#305fbd;font-weight:600;font-size:12px}
+    #log{margin-top:12px;white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1220;color:#e6edf3;border-radius:12px;padding:10px;max-height:220px;overflow:auto}
+    footer{padding:22px 0;color:#6b7280;text-align:center}
+    .hide{display:none}
+    .login{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .login input{width:auto}
+  </style>
+
+  <!-- Carga local de supabase-js; fallback a CDN si falla -->
+  <script src="lib/supabase.min.js" defer></script>
+  <script>
+    window.addEventListener('load', function(){
+      if (window.supabase) return;
+      const cdns = [
+        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js",
+        "https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"
+      ];
+      (function next(i){
+        if (window.supabase || i>=cdns.length) return;
+        const s=document.createElement('script'); s.src=cdns[i]; s.defer=true;
+        s.onload=()=>console.log("[supabase] cargado desde CDN");
+        s.onerror=()=>{ console.warn("[supabase] CDN fallback…"); next(i+1); };
+        document.head.appendChild(s);
+      })(0);
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <a class="link" href="index.html">← Volver al menú</a>
+      <div class="login" id="loginBox">
+        <span id="sessionState" class="muted">Sesión: desconectado</span>
+        <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
+        <button id="btnLogin"  type="button" class="btn">Iniciar sesión</button>
+        <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h1>Doctor · Registro de mascotas <span class="pill" id="state">conectando…</span></h1>
+      <p class="muted" style="margin-top:-4px">Solo doctores autorizados pueden crear o editar registros.</p>
+
+      <div class="row" style="margin:8px 0 14px">
+        <input id="q" type="search" placeholder="Buscar por nombre o ID (ej. 'Luna' o '102')">
+        <button id="btnSearch" class="btn btn--brand" type="button">Buscar</button>
+      </div>
+
+      <div class="grid">
+        <div><label>Nombre</label><input id="f_nombre" type="text" placeholder="Nombre de la mascota"></div>
+        <div><label>Raza</label><input id="f_raza" type="text" placeholder="Beagle / Criollo…"></div>
+        <div><label>Edad</label><input id="f_edad" type="number" min="0" step="1" placeholder="4"></div>
+        <div><label>Sexo</label><select id="f_sexo"><option value="">—</option><option>Hembra</option><option>Macho</option></select></div>
+        <div><label>Dueño (nombre)</label><input id="f_duenio" type="text" placeholder="Nombre del propietario"></div>
+        <div><label>Teléfono</label><input id="f_tel" type="tel" placeholder="+52 81…"></div>
+        <div><label>Email</label><input id="f_email" type="email" placeholder="propietario@correo.com"></div>
+        <div><label>Foto (opcional)</label><input id="f_foto" type="file" accept="image/*"></div>
+        <div style="grid-column:1/-1"><label>Historial / notas</label><textarea id="f_hist" placeholder="Vacunas, alergias, observaciones…"></textarea></div>
+      </div>
+
+      <div class="actions">
+        <button id="btnSave"   class="btn btn--brand" type="button" disabled>Guardar (nuevo)</button>
+        <button id="btnUpdate" class="btn" type="button" disabled>Actualizar</button>
+        <button id="btnDelete" class="btn btn--danger" type="button" disabled>Eliminar</button>
+      </div>
+
+      <div id="log" class="hide"></div>
+    </div>
+
+    <div id="results" class="results"></div>
+    <footer>© <span id="y"></span> TuVet</footer>
+  </div>
+
+  <!-- App -->
+  
+  <script src="./supabase.min.js" defer></script>
+  <script type="module" src="./programador.js"></script>
+</body>
+</html>
