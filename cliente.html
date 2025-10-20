@@ -61,7 +61,7 @@
   </div>
 
  <script src="./supabase.min.js" defer></script>
-  <script type="module">
+  <script typem="module">
   import { getSupa } from "./main.js";
   const supa = await getSupa();
 
@@ -117,7 +117,7 @@
     });
   }
 
-  // ======= Supabase Auth =======
+  // ======= Supabase Auth (CORREGIDO) =======
   window.__SESSION_OK__ = false;
 
   // CORRECCIÓN 1: La función ahora recibe la sesión, no la pide.
@@ -157,32 +157,30 @@
   });
 
   // ======= Búsqueda en Supabase =======
-  // Visitante -> vista pública pets_public (solo datos no sensibles)
-  // Logueado  -> tabla pets (RLS: solo sus mascotas)
   async function fetchPet(query){
-  const q = String(query||"").trim();
-  if(!q) return [];
+    const q = String(query||"").trim();
+    if(!q) return [];
 
-  if (window.__SESSION_OK__) {
-    // Usuario logueado → tabla completa
-    const { data, error } = await supa
-      .from('mascotas')
-      .select('id, nombre, raza, edad, sexo, foto_url, duenio, telefono, email, historial')
-      .or(`id.eq.${q},nombre.ilike.%${q}%`)
-      .limit(20);
-    if (error) { console.error(error); return []; }
-    return data || [];
-  } else {
-    // Visitante → vista pública (sin sensibles)
-    const { data, error } = await supa
-      .from('mascotas_public')
-      .select('id, nombre, raza, edad, sexo, foto_url')
-      .or(`id.eq.${q},nombre.ilike.%${q}%`)
-      .limit(20);
-    if (error) { console.error(error); return []; }
-    return data || [];
+    if (window.__SESSION_OK__) {
+      // Usuario logueado → tabla completa
+      const { data, error } = await supa
+        .from('mascotas')
+        .select('id, nombre, raza, edad, sexo, foto_url, duenio, telefono, email, historial')
+        .or(`id.eq.${q},nombre.ilike.%${q}%`)
+        .limit(20);
+      if (error) { console.error(error); return []; }
+      return data || [];
+    } else {
+      // Visitante → vista pública (sin sensibles)
+      const { data, error } = await supa
+        .from('mascotas_public')
+        .select('id, nombre, raza, edad, sexo, foto_url')
+        .or(`id.eq.${q},nombre.ilike.%${q}%`)
+        .limit(20);
+      if (error) { console.error(error); return []; }
+      return data || [];
+    }
   }
-}
 
 
   // ======= UI handlers =======

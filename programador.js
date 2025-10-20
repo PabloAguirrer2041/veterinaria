@@ -31,19 +31,18 @@ function fillForm(p){
   $("#f_hist").value   = p?.historial || "";
 }
 
-/* --------- Auth --------- */
-// CÓDIGO CORREGIDO
+/* --------- Auth (CORREGIDO) --------- */
 async function doLogin(){
   try{
     const supa = await getSupa();
-    // Ahora leemos el email directamente del campo
-    const email = ($("#docId").value || "").trim(); 
+    // CORRECCIÓN: Lee el email directamente, no el 'raw id'
+    const email = ($("#docId").value || "").trim();
     const pwd = $("#docPwd").value || "";
     
-    // Actualizamos el mensaje de alerta
-    if (!email || !pwd) return alert("Escribe Correo y contraseña"); 
+    // CORRECCIÓN: Mensaje de alerta actualizado
+    if (!email || !pwd) return alert("Escribe Correo y contraseña");
     
-    // ELIMINAMOS la conversión idToEmail(raw)
+    // CORRECCIÓN: Se eliminó la línea "const email = idToEmail(raw);"
 
     const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
     if (error) return alert(`Error al iniciar sesión: ${error.message}`);
