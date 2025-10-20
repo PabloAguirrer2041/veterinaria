@@ -1,207 +1,211 @@
-// programador.js — Login + Buscador + CRUD perros
-document.addEventListener('DOMContentLoaded', async () => {
+// programador.js — lógica de la página del doctor
+import { getSupa, onSession, idToEmail, ready } from "./main.js";
+
+const $ = (s)=>document.querySelector(s);
+const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID()
+  : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
+
+let user = null;
+let current = null;
+
+function setOnline(on){
+  const pill = $("#state");
+  pill.textContent = on ? "online" : "offline";
+  pill.style.background = on ? "#e8fbfb" : "#ffeaea";
+  pill.style.color = on ? "#075e59" : "#8b1a1a";
+  $("#btnSave").disabled   = !on;
+  $("#btnUpdate").disabled = !on || !current;
+  $("#btnDelete").disabled = !on || !current;
+  $("#docId").disabled  = on;
+  $("#docPwd").disabled = on;
+}
+function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
+function fillForm(p){
+  $("#f_nombre").value = p?.nombre || "";
+  $("#f_raza").value   = p?.raza   || "";
+  $("#f_edad").value   = p?.edad   ?? "";
+  $("#f_sexo").value   = p?.sexo   || "";
+  $("#f_duenio").value = p?.duenio || "";
+  $("#f_tel").value    = p?.telefono || "";
+  $("#f_email").value  = p?.email || "";
+  $("#f_hist").value   = p?.historial || "";
+}
+
+/* --------- Auth --------- */
+// CÓDIGO CORREGIDO
+async function doLogin(){
+  try{
+    const supa = await getSupa();
+    // Ahora leemos el email directamente del campo
+    const email = ($("#docId").value || "").trim(); 
+    const pwd = $("#docPwd").value || "";
+    
+    // Actualizamos el mensaje de alerta
+    if (!email || !pwd) return alert("Escribe Correo y contraseña"); 
+    
+    // ELIMINAMOS la conversión idToEmail(raw)
+
+    const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
+    if (error) return alert(`Error al iniciar sesión: ${error.message}`);
+    $("#docPwd").value = "";
+  }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
+}
+async function doLogout(){
+  try{
+    const supa = await getSupa();
+    await supa.auth.signOut();
+  }catch(e){ console.warn("[logout]", e); }
+}
+
+/* --------- Storage --------- */
+async function uploadPhoto(file){
+  if(!file) return null;
   const supa = await getSupa();
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `mascotas/${uuid()}.${ext}`;
+  const { error } = await supa.storage.from("fotos").upload(path, file, { upsert:false });
+  if (error){ logMsg("⚠️ Upload: " + error.message); return null; }
+  const { data } = supa.storage.from("fotos").getPublicUrl(path);
+  return data.publicUrl || null;
+}
 
-  // Config: ajusta a tu tabla/columnas reales
-  const TABLE_PERROS = 'perros';
-  const COLS = { id: 'id', nombre: 'nombre', raza: 'raza', edad: 'edad' };
+/* --------- CRUD --------- */
+async function saveNew(){
+  if(!user) return alert("Inicia sesión para guardar.");
+  const supa = await getSupa();
+  $("#btnSave").disabled = true;
 
-  // UI refs
-  const statusEl = qs('#status');
-  const cardLogin = qs('#cardLogin');
-  const cardSession = qs('#cardSession');
-  const cardSearch = qs('#cardSearch');
-  const cardForm = qs('#cardForm');
-  const sessionEmail = qs('#sessionEmail');
+  const file = $("#f_foto")?.files?.[0];
+  const foto_url = file ? await uploadPhoto(file) : null;
 
-  const loginForm = qs('#loginForm');
-  const btnLogout = qs('#btnLogout');
-  const btnReload = qs('#btnReload');
+  const payload = {
+    nombre:   $("#f_nombre").value.trim(),
+    raza:     $("#f_raza").value.trim(),
+    edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
+    sexo:     $("#f_sexo").value,
+    duenio:   $("#f_duenio").value.trim(),
+    telefono: $("#f_tel").value.trim(),
+    email:    $("#f_email").value.trim(),
+    historial:$("#f_hist").value.trim(),
+    foto_url,
+    owner_id: user.id
+  };
+  if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
-  const qNombre = qs('#qNombre');
-  const qRaza = qs('#qRaza');
-  const btnBuscar = qs('#btnBuscar');
-  const countEl = qs('#count');
-  const tbody = qs('#tablaPerros tbody');
+  const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
+  if(error){ logMsg("✖ Insert: " + error.message); }
+  else { logMsg("✅ Guardado ID " + data.id); current = { id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
+  $("#btnSave").disabled = false;
+}
 
-  const perroForm = qs('#perroForm');
-  const formTitle = qs('#formTitle');
-  const perroId = qs('#perroId');
-  const perroNombre = qs('#perroNombre');
-  const perroRaza = qs('#perroRaza');
-  const perroEdad = qs('#perroEdad');
-  const btnCancelar = qs('#btnCancelar');
+async function updateCurrent(){
+  if(!user || !current) return;
+  const supa = await getSupa();
+  $("#btnUpdate").disabled = true;
 
-  // Helpers
-  function qs(s){ return document.querySelector(s); }
-  function show(el, on=true){ el?.classList[on?'remove':'add']('hidden'); }
-  function setStatus(msg){ statusEl.textContent = msg; }
-  function esc(v){ return String(v ?? '').replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[s])); }
+  let foto_url = current.foto_url || null;
+  const file = $("#f_foto")?.files?.[0];
+  if (file){ const up = await uploadPhoto(file); if(up) foto_url = up; }
 
-  // SESIÓN (notificado por main.js)
-  window.onAppSession = (user) => {
-    if (user){
-      setStatus(`Sesión activa: ${user.email || 'sin email'}`);
-      sessionEmail.textContent = user.email || 'Sin email';
-      show(cardLogin, false);
-      show(cardSession, true);
-      show(cardSearch, true);
-      show(cardForm, true);
-      buscar();
-    } else {
-      setStatus('Sin sesión');
-      sessionEmail.textContent = 'Sin sesión';
-      show(cardLogin, true);
-      show(cardSession, false);
-      show(cardSearch, false);
-      show(cardForm, false);
-      tbody.innerHTML = '';
-      countEl.textContent = '';
-    }
+  const payload = {
+    nombre:   $("#f_nombre").value.trim(),
+    raza:     $("#f_raza").value.trim(),
+    edad:     $("#f_edad").value ? Number($("#f_edad").value) : null,
+    sexo:     $("#f_sexo").value,
+    duenio:   $("#f_duenio").value.trim(),
+    telefono: $("#f_tel").value.trim(),
+    email:    $("#f_email").value.trim(),
+    historial:$("#f_hist").value.trim(),
+    foto_url
   };
 
-  // LOGIN con manejo de errores explícito
-  loginForm?.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const email = qs('#docEmail').value.trim();
-    const password = qs('#docPwd').value.trim();
-    try {
-      const { error, data } = await supa.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.error("Auth error:", error);
-        alert("Auth error: " + (error.message || "ver consola"));
-        return;
-      }
-      console.log("Auth OK:", data);
-    } catch (err) {
-      console.error("Network/Fetch error:", err);
-      alert("Network/Fetch error: " + (err?.message || err));
+  const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
+  if(error){ logMsg("✖ Update: " + error.message); }
+  else { logMsg("✅ Actualizado ID " + current.id); }
+  $("#btnUpdate").disabled = false;
+}
+
+async function deleteCurrent(){
+  if(!user || !current) return;
+  if(!confirm(`¿Eliminar registro ID ${current.id}?`)) return;
+  const supa = await getSupa();
+  $("#btnDelete").disabled = true;
+  const { error } = await supa.from("mascotas").delete().eq("id", current.id);
+  if(error){ logMsg("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
+  logMsg("🗑️ Eliminado ID " + current.id);
+  current = null;
+  $("#btnUpdate").disabled = true;
+  $("#btnDelete").disabled = true;
+  $("#results").innerHTML = "";
+}
+
+async function search(){
+  const supa = await getSupa();
+  const q = $("#q").value.trim();
+  const results = $("#results");
+  results.innerHTML = "";
+  if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
+
+  let query = supa
+    .from("mascotas")
+    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
+    .order("id",{ascending:false}).limit(20);
+
+  const n = Number(q);
+  query = (Number.isFinite(n) && String(n)===q)
+    ? query.or(`id.eq.${n},nombre.ilike.%${q}%`)
+    : query.ilike("nombre", `%${q}%`);
+
+  const { data, error } = await query;
+  if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+  if(!data?.length){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
+
+  data.forEach(p=>{
+    const card = document.createElement("div");
+    card.className = "item";
+    const foto = p.foto_url || "img/perrito.jpg";
+    card.innerHTML = `
+      <img src="${foto}" alt="${p.nombre}">
+      <div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <strong>${p.nombre}</strong>
+          <span class="pill">ID: ${p.id}</span>
+          <span class="muted">${p.raza || ""} ${p.sexo?(" · "+p.sexo):""}</span>
+        </div>
+        <div class="muted">Dueño: ${p.duenio || "—"}</div>
+      </div>`;
+    card.style.cursor = "pointer";
+    card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
+    results.appendChild(card);
+  });
+}
+
+/* --------- Arranque --------- */
+ready(async ()=>{
+  $("#btnLogin").addEventListener("click", doLogin);
+  $("#btnLogout").addEventListener("click", doLogout);
+  $("#btnSearch").addEventListener("click", search);
+  $("#q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
+  $("#btnSave").addEventListener("click", saveNew);
+  $("#btnUpdate").addEventListener("click", updateCurrent);
+  $("#btnDelete").addEventListener("click", deleteCurrent);
+  $("#y").textContent = new Date().getFullYear();
+
+  onSession(u=>{
+    user = u;
+    const sEl = $("#sessionState");
+    if (user){
+      sEl.textContent = "Sesión: " + (user.email || user.id);
+      $("#btnLogin").classList.add("hide");
+      $("#btnLogout").classList.remove("hide");
+      setOnline(true);
+    } else {
+      sEl.textContent = "Sesión: desconectado";
+      $("#btnLogin").classList.remove("hide");
+      $("#btnLogout").classList.add("hide");
+      setOnline(false);
     }
   });
 
-  // LOGOUT
-  btnLogout?.addEventListener('click', async ()=>{
-    await supa.auth.signOut();
-  });
-
-  // Rehidratar on-demand
-  btnReload?.addEventListener('click', async ()=>{
-    const { data:{ session } } = await supa.auth.getSession();
-    window.onAppSession?.(session?.user || null);
-  });
-
-  // BUSCADOR
-  btnBuscar?.addEventListener('click', buscar);
-  qNombre?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') buscar(); });
-
-  async function buscar(){
-    try {
-      let query = supa.from(TABLE_PERROS).select('*').order(COLS.nombre, { ascending: true });
-      const nombre = (qNombre?.value || '').trim();
-      const raza = (qRaza?.value || '').trim();
-      if (nombre) query = query.ilike(COLS.nombre, `%${nombre}%`);
-      if (raza)   query = query.eq(COLS.raza, raza);
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      renderTabla(data || []);
-      countEl.textContent = `${(data||[]).length} resultado(s)`;
-    } catch (err){
-      console.error('Error buscar:', err);
-      alert('Error al buscar: ' + err.message);
-    }
-  }
-
-  function renderTabla(rows){
-    tbody.innerHTML = '';
-    if (!rows.length){
-      tbody.innerHTML = `<tr><td colspan="5" class="muted">Sin resultados</td></tr>`;
-      return;
-    }
-    for (const r of rows){
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${esc(r[COLS.nombre])}</td>
-        <td>${esc(r[COLS.raza] ?? '')}</td>
-        <td>${esc(r[COLS.edad] ?? '')}</td>
-        <td class="muted">${esc(r[COLS.id])}</td>
-        <td>
-          <div class="row-actions">
-            <button data-act="edit" data-id="${r[COLS.id]}">Editar</button>
-            <button class="btn-danger" data-act="del" data-id="${r[COLS.id]}">Borrar</button>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    }
-  }
-
-  // Acciones de tabla
-  tbody.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    const id = btn.dataset.id;
-    const act = btn.dataset.act;
-
-    if (act === 'edit'){
-      const { data, error } = await supa.from(TABLE_PERROS).select('*').eq(COLS.id, id).single();
-      if (error){ alert('No se pudo cargar: ' + error.message); return; }
-      formTitle.textContent = 'Editar perro';
-      perroId.value = data[COLS.id];
-      perroNombre.value = data[COLS.nombre] ?? '';
-      perroRaza.value = data[COLS.raza] ?? '';
-      perroEdad.value = data[COLS.edad] ?? '';
-      perroNombre.focus();
-    }
-
-    if (act === 'del'){
-      if (!confirm('¿Borrar este perro?')) return;
-      const { error } = await supa.from(TABLE_PERROS).delete().eq(COLS.id, id);
-      if (error){ alert('No se pudo borrar: ' + error.message); return; }
-      buscar();
-    }
-  });
-
-  // Guardar (alta/edición)
-  perroForm?.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const payload = {
-      [COLS.nombre]: perroNombre.value.trim(),
-      [COLS.raza]: perroRaza.value.trim() || null,
-      [COLS.edad]: perroEdad.value ? Number(perroEdad.value) : null,
-    };
-
-    try {
-      if (perroId.value){
-        const { error } = await supa.from(TABLE_PERROS).update(payload).eq(COLS.id, perroId.value);
-        if (error) throw error;
-      } else {
-        const { error } = await supa.from(TABLE_PERROS).insert(payload);
-        if (error) throw error;
-      }
-      limpiarForm();
-      buscar();
-    } catch (err){
-      alert('No se pudo guardar: ' + err.message);
-    }
-  });
-
-  btnCancelar?.addEventListener('click', limpiarForm);
-  function limpiarForm(){
-    formTitle.textContent = 'Agregar perro';
-    perroId.value = '';
-    perroNombre.value = '';
-    perroRaza.value = '';
-    perroEdad.value = '';
-  }
-
-  // Intento inicial de sesión (por si refrescaste logueado)
-  try {
-    const { data:{ session } } = await supa.auth.getSession();
-    window.onAppSession?.(session?.user || null);
-  } catch (e) {
-    setStatus('No se pudo recuperar la sesión');
-    console.error(e);
-  }
+  try { await getSupa(); } catch(e){ console.warn("[getSupa] fallback/espera", e); }
 });
