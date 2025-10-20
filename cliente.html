@@ -60,7 +60,11 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
- <script>
+ <script src="./supabase.min.js" defer></script>
+  <script type="module">
+  import { getSupa } from "./main.js";
+  const supa = await getSupa();
+
   // ======= UI helpers =======
   const $ = (s)=>document.querySelector(s);
   const results = $("#results");
@@ -116,8 +120,9 @@
   // ======= Supabase Auth =======
   window.__SESSION_OK__ = false;
 
-  async function refreshSession(){
-    const { data: { session } } = await supa.auth.getSession();
+  // CORRECCIÓN 1: La función ahora recibe la sesión, no la pide.
+  async function refreshSession(session){
+    // const { data: { session } } = await supa.auth.getSession(); // <-- LÍNEA INCORRECTA ELIMINADA
     window.__SESSION_OK__ = !!session;
     if (session){
       sessionState.textContent = "Sesión: dueño/a";
@@ -146,35 +151,38 @@
   btnLogin.onclick = doLogin;
   btnLogout.onclick = doLogout;
 
-  supa.auth.onAuthStateChange(async (_evt, _session) => {
-    await refreshSession();
+  // CORRECCIÓN 2: Pasa la 'session' recibida a refreshSession
+  supa.auth.onAuthStateChange(async (_evt, session) => {
+    await refreshSession(session);
   });
 
-  <!-- cliente.html -->
-<!-- ... tu HTML ... -->
+  // ======= Búsqueda en Supabase =======
+  // Visitante -> vista pública pets_public (solo datos no sensibles)
+  // Logueado  -> tabla pets (RLS: solo sus mascotas)
+  async function fetchPet(query){
+  const q = String(query||"").trim();
+  if(!q) return [];
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
-<script src="./main.js" defer></script>
-<script>
-document.addEventListener("DOMContentLoaded", async ()=>{
-  const supa = await getSupa();
-
-  // Aquí va tu código actual para la vista cliente
-  const { data:{ session } } = await supa.auth.getSession();
-  if (session?.user){
-    console.log("Usuario autenticado:", session.user.email);
+  if (window.__SESSION_OK__) {
+    // Usuario logueado → tabla completa
+    const { data, error } = await supa
+      .from('mascotas')
+      .select('id, nombre, raza, edad, sexo, foto_url, duenio, telefono, email, historial')
+      .or(`id.eq.${q},nombre.ilike.%${q}%`)
+      .limit(20);
+    if (error) { console.error(error); return []; }
+    return data || [];
   } else {
-    console.log("Cliente sin sesión activa");
+    // Visitante → vista pública (sin sensibles)
+    const { data, error } = await supa
+      .from('mascotas_public')
+      .select('id, nombre, raza, edad, sexo, foto_url')
+      .or(`id.eq.${q},nombre.ilike.%${q}%`)
+      .limit(20);
+    if (error) { console.error(error); return []; }
+    return data || [];
   }
-
-  // Ejemplo: escuchar cambios de sesión
-  window.onAppSession = (user)=>{
-    console.log("Cambio de sesión (cliente):", user);
-  };
-});
-</script>
-</body>
-</html>
+}
 
 
   // ======= UI handlers =======
@@ -189,5 +197,9 @@ document.addEventListener("DOMContentLoaded", async ()=>{
 
   // ======= Init =======
   document.getElementById("y").textContent = new Date().getFullYear();
-  refreshSession();
+  // CORRECIÓN 3: Llama con 'null' para establecer el estado inicial de visitante.
+  refreshSession(null); 
 </script>
+
+</body>
+</html>
