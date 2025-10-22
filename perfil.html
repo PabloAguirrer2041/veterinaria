@@ -102,7 +102,7 @@
           <span>${pet.sexo || 'No especificado'}</span>
         </div>
         <div class="full">
-          <strong>Notas Públicas:</strong>
+          <strong>Notas PúblicAS:</strong>
           <div class="historial">${pet.notas_publicas || 'Sin notas.'}</div>
         </div>
       </div>
@@ -136,10 +136,6 @@
 
   // --- Carga de Datos ---
   async function loadProfile(session) {
-    // ==========================================================
-    // ¡CORRECCIÓN! Se usa .toLowerCase() para evitar problemas
-    // con mayúsculas (ej. DrPerroN1@Doctores.local)
-    // ==========================================================
     const isDoctor = session && session.user.email.toLowerCase().endsWith('@doctores.local');
     
     // Limpiar el estado
@@ -151,18 +147,12 @@
       logoutArea.classList.remove("hide");
       sessionState.textContent = `Dr. ${session.user.email.split('@')[0]}`;
       
-      console.log("Modo Doctor: Cargando datos privados...");
       const { data, error } = await supa.from('mascotas').select('*').eq('id', petId).single();
-      
       if (error) {
         console.error("Error (Doctor):", error.message);
-        profileCard.innerHTML = `<h1>Error de RLS</h1><p>El doctor está logueado, pero la regla RLS está bloqueando la vista. Revisa la Política #1 en tu SQL Editor.</p><p><small>${error.message}</small></p>`;
+        profileCard.innerHTML = `<h1>Error de RLS</h1><p>El doctor está logueado, pero la regla RLS está bloqueando la vista.</p><p><small>${error.message}</small></p>`;
         return;
       }
-      if (!data) {
-        console.warn("Doctor logueado, pero la consulta no devolvió datos (¿ID incorrecto?)");
-      }
-      
       render(data, 'doctor');
       
     } else {
@@ -171,14 +161,11 @@
       logoutArea.classList.add("hide");
       sessionState.textContent = "";
 
-      console.log("Modo Público: Cargando datos públicos...");
       const { data, error } = await supa.from('mascotas_perfil_publico').select('*').eq('id', petId).single();
-      
       if (error) {
          console.error("Error (Público):", error.message);
          profileCard.innerHTML = `<h1>Error</h1><p>No se pudo cargar el perfil público.</p><p><small>${error.message}</small></p>`;
       }
-      
       render(data, 'public');
     }
   }
@@ -219,6 +206,16 @@
     
     // 3. Monitorear cambios de sesión y cargar el perfil
     supa.auth.onAuthStateChange(async (_evt, session) => {
+      
+      // ---- INICIO DE LA CORRECCIÓN (Race Condition) ----
+      // A veces, la base de datos intenta consultar ANTES
+      // de que el nuevo token de sesión esté 100% activo.
+      // Añadimos un pequeño retraso para asegurar que el token se propague.
+      console.log("Auth state changed, waiting 250ms for token to settle...");
+      await new Promise(resolve => setTimeout(resolve, 250));
+      console.log("Wait complete, loading profile.");
+      // ---- FIN DE LA CORRECCIÓN ----
+
       await loadProfile(session);
     });
   }
