@@ -29,6 +29,9 @@ function fillForm(p){
   $("#f_tel").value    = p?.telefono || "";
   $("#f_email").value  = p?.email || "";
   $("#f_hist").value   = p?.historial || "";
+  $("#f_email").value  = p?.email || "";
+  $("#f_hist").value   = p?.historial || "";
+  $("#f_notas_publicas").value = p?.notas_publicas || ""; // <-- AÑADIR ESTA LÍNEA
 }
 
 /* --------- Auth (CORREGIDO) --------- */
@@ -85,7 +88,8 @@ async function saveNew(){
     duenio:   $("#f_duenio").value.trim(),
     telefono: $("#f_tel").value.trim(),
     email:    $("#f_email").value.trim(),
-    historial:$("#f_hist").value.trim(),
+    historial: $("#f_hist").value.trim(),
+    notas_publicas: $("#f_notas_publicas").value.trim(), // <-- AÑADIR ESTA LÍNEA
     foto_url,
     owner_id: user.id
   };
@@ -93,7 +97,17 @@ async function saveNew(){
 
   const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
   if(error){ logMsg("✖ Insert: " + error.message); }
-  else { logMsg("✅ Guardado ID " + data.id); current = { id:data.id, ...payload }; $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; }
+  else { 
+    logMsg("✅ Guardado ID " + data.id); 
+    current = { id:data.id, ...payload }; 
+    $("#btnUpdate").disabled=false; 
+    $("#btnDelete").disabled=false;
+
+    // <-- AÑADIR ESTAS 3 LÍNEAS PARA MOSTRAR EL LINK -->
+    const link = `perfil.html?id=${data.id}`;
+    $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
+    window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
+  }
   $("#btnSave").disabled = false;
 }
 

@@ -99,11 +99,18 @@
         <div style="grid-column:1/-1"><label>Historial / notas</label><textarea id="f_hist" placeholder="Vacunas, alergias, observaciones…"></textarea></div>
       </div>
 
+      <div style="grid-column:1/-1">
+  <label>Notas Públicas (Info de extravío)</label>
+  <textarea id="f_notas_publicas" placeholder="Datos seguros para el público. Ej: Vacuna Rabia vigente. Soy amigable. Alérgico al pollo."></textarea>
+</div>
+
       <div class="actions">
         <button id="btnSave"   class="btn btn--brand" type="button" disabled>Guardar (nuevo)</button>
         <button id="btnUpdate" class="btn" type="button" disabled>Actualizar</button>
         <button id="btnDelete" class="btn btn--danger" type="button" disabled>Eliminar</button>
       </div>
+
+      <div id="newLink" style="margin-top:14px; font-weight:600;"></div>
 
       <div id="log" class="hide"></div>
     </div>

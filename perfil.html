@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Perfil de Mascota</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root{
+      --bg:#f6f9fb; --card:#fff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4;
+      --shadow: 0 10px 30px rgba(16,24,40,.06);
+    }
+    *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .container{max-width:700px;margin:auto;padding:20px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px 22px}
+    h1{margin:0 0 12px; font-size: 28px;}
+    .muted{color:var(--muted)}
+    img.profile{width:120px;height:120px;object-fit:cover;border-radius:14px;border:1px solid var(--line); margin-bottom: 12px;}
+    .grid{display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-top: 10px;}
+    .grid strong{display:block; font-size: 13px; color: var(--muted); text-transform: uppercase;}
+    .grid span{font-size: 16px;}
+    .full{grid-column: 1 / -1;}
+    .historial{white-space: pre-wrap; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid var(--line); max-height: 300px; overflow-y: auto;}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px; flex-wrap: wrap;}
+    .link{color:var(--brand);font-weight:700;text-decoration:none}
+    .login-box{display:flex; gap: 8px; align-items: center;}
+    .login-box input{padding: 8px; border-radius: 8px; border: 1px solid var(--line);}
+    .btn{border:1px solid var(--line);background:#fff;padding:8px 12px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn--brand{background:var(--brand);border-color:var(--brand);color:#fff}
+    .hide{display:none}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <a class="link" href="index.html">← Volver al inicio</a>
+      <div id="loginArea">
+        <button id="btnLogin" class="btn">Acceso Doctor</button>
+      </div>
+      <div id="logoutArea" class="hide">
+        <span class="muted" id="sessionState"></span>
+        <button id="btnLogout" class="btn">Cerrar sesión</button>
+      </div>
+    </div>
+
+    <div class="card" id="profileCard">
+      <h1 class="muted">Cargando perfil...</h1>
+    </div>
+
+    <div id="doctorLogin" class="card hide" style="margin-top: 16px;">
+      <h2>Acceso de Doctor</h2>
+      <div class="login-box">
+        <input id="docEmail" type="email" placeholder="correo@doctores.local">
+        <input id="docPwd" type="password" placeholder="Contraseña">
+        <button id="btnSubmitLogin" class="btn btn--brand">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+ <script src="./supabase.min.js" defer></script>
+ <script type="module">
+  import { getSupa } from "./main.js";
+  const $ = (s) => document.querySelector(s);
+
+  // --- Elementos UI ---
+  const profileCard = $("#profileCard");
+  const loginArea = $("#loginArea");
+  const logoutArea = $("#logoutArea");
+  const sessionState = $("#sessionState");
+  const doctorLogin = $("#doctorLogin");
+
+  let petId = null;
+  let supa = null;
+
+  // --- Renderizado ---
+  function render(pet, mode = 'public') {
+    if (!pet) {
+      profileCard.innerHTML = "<h1>Error 404</h1><p>No se encontró el perfil de esta mascota.</p>";
+      return;
+    }
+    
+    const foto = pet.foto_url || "img/perrito.jpg";
+    const isDoctor = mode === 'doctor';
+    
+    // Vista Pública (Lost Pet)
+    let publicView = `
+      <h1>${pet.nombre}</h1>
+      <img src="${foto}" alt="${pet.nombre}" class="profile">
+      <div class="grid">
+        <div class="full">
+          <strong>En caso de extravío, contactar a:</strong>
+          <span>${pet.duenio || 'No especificado'}</span>
+        </div>
+        <div>
+          <strong>Teléfono:</strong>
+          <span>${pet.telefono || 'No especificado'}</span>
+        </div>
+        <div>
+          <strong>Sexo:</strong>
+          <span>${pet.sexo || 'No especificado'}</span>
+        </div>
+        <div class="full">
+          <strong>Notas Públicas:</strong>
+          <div class="historial">${pet.notas_publicas || 'Sin notas.'}</div>
+        </div>
+      </div>
+    `;
+    
+    // Vista de Doctor (Info Completa)
+    let doctorView = `
+      <h1>${pet.nombre} <span style="color: var(--brand); font-size: 16px;">(Vista de Doctor)</span></h1>
+      <img src="${foto}" alt="${pet.nombre}" class="profile">
+      <div class="grid">
+        <div><strong>ID:</strong> <span>${pet.id}</span></div>
+        <div><strong>Raza:</strong> <span>${pet.raza || '—'}</span></div>
+        <div><strong>Edad:</strong> <span>${pet.edad || '—'}</span></div>
+        <div><strong>Sexo:</strong> <span>${pet.sexo || '—'}</span></div>
+        <div class="full"><strong>Dueño:</strong> <span>${pet.duenio || '—'}</span></div>
+        <div><strong>Teléfono:</strong> <span>${pet.telefono || '—'}</span></div>
+        <div><strong>Email:</strong> <span>${pet.email || '—'}</span></div>
+        <div class="full">
+          <strong>Notas Públicas:</strong>
+          <div class="historial" style="background: #fff;">${pet.notas_publicas || 'Sin notas.'}</div>
+        </div>
+        <div class="full">
+          <strong>Historial Clínico (Privado):</strong>
+          <div class="historial">${pet.historial || 'Sin historial.'}</div>
+        </div>
+      </div>
+    `;
+    
+    profileCard.innerHTML = isDoctor ? doctorView : publicView;
+  }
+
+  // --- Carga de Datos ---
+  async function loadProfile(session) {
+    const isDoctor = session && session.user.email.endsWith('@doctores.local');
+    
+    // Limpiar el estado
+    doctorLogin.classList.add("hide");
+    
+    if (isDoctor) {
+      // Doctor: Cargar de la tabla 'mascotas' (RLS lo permite)
+      loginArea.classList.add("hide");
+      logoutArea.classList.remove("hide");
+      sessionState.textContent = `Dr. ${session.user.email.split('@')[0]}`;
+      
+      const { data, error } = await supa.from('mascotas').select('*').eq('id', petId).single();
+      if (error) console.error("Error (Doctor):", error);
+      render(data, 'doctor');
+      
+    } else {
+      // Público: Cargar de la vista 'mascotas_perfil_publico'
+      loginArea.classList.remove("hide");
+      logoutArea.classList.add("hide");
+      sessionState.textContent = "";
+
+      const { data, error } = await supa.from('mascotas_perfil_publico').select('*').eq('id', petId).single();
+      if (error) console.error("Error (Público):", error);
+      render(data, 'public');
+    }
+  }
+
+  // --- Lógica de Auth (Solo para Doctores) ---
+  $("#btnLogin").onclick = () => {
+    doctorLogin.classList.toggle("hide");
+  };
+  
+  $("#btnLogout").onclick = async () => {
+    await supa.auth.signOut();
+  };
+  
+  $("#btnSubmitLogin").onclick = async () => {
+    const email = $("#docEmail").value;
+    const pwd = $("#docPwd").value;
+    if (!email || !pwd) return alert("Llena ambos campos");
+    
+    const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
+    if (error) return alert(error.message);
+    
+    $("#docPwd").value = "";
+    doctorLogin.classList.add("hide");
+  };
+
+  // --- Init ---
+  async function init() {
+    // 1. Obtener el ID de la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    petId = urlParams.get('id');
+    if (!petId) {
+      profileCard.innerHTML = "<h1>Error</h1><p>ID de mascota no especificado en la URL.</p>";
+      return;
+    }
+    
+    // 2. Iniciar Supabase
+    supa = await getSupa();
+    
+    // 3. Monitorear cambios de sesión y cargar el perfil
+    supa.auth.onAuthStateChange(async (_evt, session) => {
+      await loadProfile(session);
+    });
+  }
+
+  init();
+</script>
+
+</body>
+</html>
