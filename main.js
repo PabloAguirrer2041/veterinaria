@@ -1,4 +1,9 @@
-// main.js — CORREGIDO (Sin bucle infinito)
+// ===================================
+// main.js (¡EL CORREGIDO!)
+// ===================================
+// Este archivo NO tiene el bucle infinito de "getSession"
+// dentro de "onAuthStateChange".
+
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
