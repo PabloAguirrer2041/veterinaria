@@ -60,9 +60,13 @@
   </div>
 
  <script src="./supabase.min.js" defer></script>
+ 
  <script type="module">
-  import { getSupa } from "./main.js";
   const $ = (s) => document.querySelector(s);
+
+  // --- Constantes de Supabase ---
+  const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
   // --- Elementos UI ---
   const profileCard = $("#profileCard");
@@ -77,7 +81,7 @@
   // --- Renderizado ---
   function render(pet, mode = 'public') {
     if (!pet) {
-      profileCard.innerHTML = "<h1>Error 404</h1><p>No se encontró el perfil de esta mascota. Revisa que el ID sea correcto y que las reglas RLS de Supabase sean correctas.</p>";
+      profileCard.innerHTML = "<h1>Error 404</h1><p>No se encontró el perfil de esta mascota. Revisa que el ID sea correcto.</p>";
       return;
     }
     
@@ -102,7 +106,7 @@
           <span>${pet.sexo || 'No especificado'}</span>
         </div>
         <div class="full">
-          <strong>Notas PúblicAS:</strong>
+          <strong>Notas Públicas:</strong>
           <div class="historial">${pet.notas_publicas || 'Sin notas.'}</div>
         </div>
       </div>
@@ -138,7 +142,6 @@
   async function loadProfile(session) {
     const isDoctor = session && session.user.email.toLowerCase().endsWith('@doctores.local');
     
-    // Limpiar el estado
     doctorLogin.classList.add("hide");
     
     if (isDoctor) {
@@ -201,27 +204,28 @@
       return;
     }
     
-    // 2. Iniciar Supabase
-    supa = await getSupa();
-    
-    // 3. Monitorear cambios de sesión y cargar el perfil
-    supa.auth.onAuthStateChange(async (_evt, session) => {
-      
-      // ---- INICIO DE LA CORRECCIÓN (Race Condition) ----
-      // A veces, la base de datos intenta consultar ANTES
-      // de que el nuevo token de sesión esté 100% activo.
-      // Añadimos un pequeño retraso para asegurar que el token se propague.
-      console.log("Auth state changed, waiting 250ms for token to settle...");
-      await new Promise(resolve => setTimeout(resolve, 250));
-      console.log("Wait complete, loading profile.");
-      // ---- FIN DE LA CORRECCIÓN ----
+    // 2. Esperar a que supabase.min.js cargue
+    while (!window.supabase) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
 
+    // 3. Iniciar Supabase (¡aquí mismo!)
+    supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    });
+    
+    // 4. Monitorear cambios de sesión y cargar el perfil
+    //    Esta lógica NO tiene el bucle infinito.
+    supa.auth.onAuthStateChange(async (_evt, session) => {
+      // El 'await' aquí es clave para evitar la "Race Condition"
       await loadProfile(session);
     });
   }
 
-  init();
-</script>
+  // Llama a init() tan pronto como el DOM esté listo
+  if (document.readyState !== "loading") init();
+  else document.addEventListener("DOMContentLoaded", init, { once:true });
 
+</script>
 </body>
 </html>
