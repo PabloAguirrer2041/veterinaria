@@ -48,8 +48,15 @@ async function getSupa(){
 
 function onSession(cb){
   listeners.add(cb);
+  // Si Supa ya está listo, emite el estado actual inmediatamente
+  if (supa) {
+      supa.auth.getSession().then(({ data: { session } }) => {
+          cb(session?.user || null);
+      }).catch(err => console.error("Error getting session in onSession:", err));
+  }
   return ()=>listeners.delete(cb);
 }
+
 
 function ready(fn){
   if (document.readyState !== "loading") fn();
@@ -77,8 +84,10 @@ function setOnline(on){
   $("#btnSave").disabled   = !on;
   $("#btnUpdate").disabled = !on || !current;
   $("#btnDelete").disabled = !on || !current;
-  $("#docId").disabled  = on;
-  $("#docPwd").disabled = on;
+  // Solo deshabilita si está online Y NO HAY sesión (estado inicial antes de cargar)
+  const disableAuthFields = on && user; 
+  $("#docId").disabled = disableAuthFields;
+  $("#docPwd").disabled = disableAuthFields;
 }
 function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
 
@@ -154,7 +163,7 @@ async function saveNew(){
     historial:$("#f_hist").value.trim(),
     notas_publicas: $("#f_notas_publicas").value.trim(),
     foto_url,
-    owner_id: user.id
+    owner_id: user.id // Asegúrate que 'user' se actualiza correctamente en onSession
   };
   if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
@@ -264,10 +273,13 @@ async function search(){
 ready(async ()=>{
   // Primero, nos aseguramos de que Supabase esté listo
   try { 
+    console.log("programador.js: Initializing Supabase...");
     await getSupa(); 
+    console.log("programador.js: Supabase client ready.");
   } catch(e){ 
-    console.error("[getSupa] falló al inicializar", e); 
+    console.error("programador.js: CRITICAL - Failed to initialize Supabase", e); 
     alert("Error crítico: No se pudo cargar Supabase. Revisa la consola.");
+    setOnline(false); // Marcar como offline si falla
     return;
   }
   
@@ -283,7 +295,8 @@ ready(async ()=>{
 
   // Y nos suscribimos a los cambios de sesión
   onSession(u=>{
-    user = u;
+    console.log("programador.js: onSession triggered. User:", u ? u.email : 'null');
+    user = u; // Actualizar la variable global 'user'
     const sEl = $("#sessionState");
     if (user){
       sEl.textContent = "Sesión: " + (user.email || user.id);
@@ -294,7 +307,7 @@ ready(async ()=>{
       sEl.textContent = "Sesión: desconectado";
       $("#btnLogin").classList.remove("hide");
       $("#btnLogout").classList.add("hide");
-      setOnline(false);
+      setOnline(false); // Asegura que esté offline si no hay usuario
     }
   });
 });

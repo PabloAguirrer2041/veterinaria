@@ -150,12 +150,14 @@
       logoutArea.classList.remove("hide");
       sessionState.textContent = `Dr. ${session.user.email.split('@')[0]}`;
       
+      console.log("perfil.html (Doctor): Attempting to load private data...");
       const { data, error } = await supa.from('mascotas').select('*').eq('id', petId).single();
       if (error) {
-        console.error("Error (Doctor):", error.message);
-        profileCard.innerHTML = `<h1>Error de RLS</h1><p>El doctor está logueado, pero la regla RLS está bloqueando la vista.</p><p><small>${error.message}</small></p>`;
+        console.error("perfil.html (Doctor) - RLS Error:", error.message);
+        profileCard.innerHTML = `<h1>Error de Acceso</h1><p>Aunque estás logueado como Doctor, no se pudieron cargar los datos completos. Revisa las políticas RLS en Supabase.</p><p><small>${error.message}</small></p>`;
         return;
       }
+      console.log("perfil.html (Doctor): Data loaded:", data);
       render(data, 'doctor');
       
     } else {
@@ -164,11 +166,13 @@
       logoutArea.classList.add("hide");
       sessionState.textContent = "";
 
+      console.log("perfil.html (Public): Attempting to load public data...");
       const { data, error } = await supa.from('mascotas_perfil_publico').select('*').eq('id', petId).single();
       if (error) {
-         console.error("Error (Público):", error.message);
+         console.error("perfil.html (Public) - Error loading view:", error.message);
          profileCard.innerHTML = `<h1>Error</h1><p>No se pudo cargar el perfil público.</p><p><small>${error.message}</small></p>`;
       }
+      console.log("perfil.html (Public): Data loaded:", data);
       render(data, 'public');
     }
   }
@@ -196,6 +200,7 @@
 
   // --- Init ---
   async function init() {
+    console.log("perfil.html: Initializing...");
     // 1. Obtener el ID de la URL
     const urlParams = new URLSearchParams(window.location.search);
     petId = urlParams.get('id');
@@ -203,28 +208,34 @@
       profileCard.innerHTML = "<h1>Error</h1><p>ID de mascota no especificado en la URL.</p>";
       return;
     }
+    console.log("perfil.html: Pet ID from URL:", petId);
     
     // 2. Esperar a que supabase.min.js cargue
+    console.log("perfil.html: Waiting for Supabase library...");
     while (!window.supabase) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
+    console.log("perfil.html: Supabase library loaded.");
 
     // 3. Iniciar Supabase (¡aquí mismo!)
     supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     });
+    console.log("perfil.html: Supabase client created.");
     
     // 4. Monitorear cambios de sesión y cargar el perfil
     supa.auth.onAuthStateChange(async (_evt, session) => {
+      console.log("perfil.html: Auth state changed. Session:", session ? session.user.email : 'null');
       
       // ---- INICIO DE LA CORRECCIÓN (Race Condition) ----
-      // Damos 250ms para que el token de sesión se propague
-      // antes de hacer la consulta a la base de datos.
+      console.log("perfil.html: Waiting 250ms for token to settle...");
       await new Promise(resolve => setTimeout(resolve, 250)); 
+      console.log("perfil.html: Wait complete. Loading profile...");
       // ---- FIN DE LA CORRECCIÓN ----
 
       await loadProfile(session);
     });
+    console.log("perfil.html: Auth listener attached.");
   }
 
   // Llama a init() tan pronto como el DOM esté listo
