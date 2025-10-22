@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Doctor · Registro de mascotas</title>
 
-  <!-- Evitar cachear copias viejas -->
   <meta http-equiv="Cache-Control" content="no-store, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
@@ -45,25 +44,6 @@
     .login{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .login input{width:auto}
   </style>
-
-  <!-- Carga local de supabase-js; fallback a CDN si falla -->
-  <script src="lib/supabase.min.js" defer></script>
-  <script>
-    window.addEventListener('load', function(){
-      if (window.supabase) return;
-      const cdns = [
-        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js",
-        "https://unpkg.com/@supabase/supabase-js@2.45.6/dist/umd/supabase.min.js"
-      ];
-      (function next(i){
-        if (window.supabase || i>=cdns.length) return;
-        const s=document.createElement('script'); s.src=cdns[i]; s.defer=true;
-        s.onload=()=>console.log("[supabase] cargado desde CDN");
-        s.onerror=()=>{ console.warn("[supabase] CDN fallback…"); next(i+1); };
-        document.head.appendChild(s);
-      })(0);
-    });
-  </script>
 </head>
 <body>
   <div class="container">
@@ -71,7 +51,7 @@
       <a class="link" href="index.html">← Volver al menú</a>
       <div class="login" id="loginBox">
         <span id="sessionState" class="muted">Sesión: desconectado</span>
-        <input id="docId"  name="username" type="text" placeholder="ID (p.ej. DRPERRON1)" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input id="docId"  name="username" type="text" placeholder="Correo del doctor" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
         <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
         <button id="btnLogin"  type="button" class="btn">Iniciar sesión</button>
         <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
@@ -96,21 +76,21 @@
         <div><label>Teléfono</label><input id="f_tel" type="tel" placeholder="+52 81…"></div>
         <div><label>Email</label><input id="f_email" type="email" placeholder="propietario@correo.com"></div>
         <div><label>Foto (opcional)</label><input id="f_foto" type="file" accept="image/*"></div>
-        <div style="grid-column:1/-1"><label>Historial / notas</label><textarea id="f_hist" placeholder="Vacunas, alergias, observaciones…"></textarea></div>
+        <div style="grid-column:1/-1"><label>Historial / notas (Privado)</label><textarea id="f_hist" placeholder="Vacunas, alergias, observaciones…"></textarea></div>
+        
+        <div style="grid-column:1/-1">
+          <label>Notas Públicas (Info de extravío)</label>
+          <textarea id="f_notas_publicas" placeholder="Datos seguros para el público. Ej: Vacuna Rabia vigente. Soy amigable. Alérgico al pollo."></textarea>
+        </div>
       </div>
-
-      <div style="grid-column:1/-1">
-  <label>Notas Públicas (Info de extravío)</label>
-  <textarea id="f_notas_publicas" placeholder="Datos seguros para el público. Ej: Vacuna Rabia vigente. Soy amigable. Alérgico al pollo."></textarea>
-</div>
 
       <div class="actions">
         <button id="btnSave"   class="btn btn--brand" type="button" disabled>Guardar (nuevo)</button>
         <button id="btnUpdate" class="btn" type="button" disabled>Actualizar</button>
         <button id="btnDelete" class="btn btn--danger" type="button" disabled>Eliminar</button>
       </div>
-
-      <div id="newLink" style="margin-top:14px; font-weight:600;"></div>
+      
+      <div id="newLink" style="margin-top:14px; font-weight:600; font-size: 14px; word-break: break-all;"></div>
 
       <div id="log" class="hide"></div>
     </div>
@@ -119,8 +99,6 @@
     <footer>© <span id="y"></span> TuVet</footer>
   </div>
 
-  <!-- App -->
-  
   <script src="./supabase.min.js" defer></script>
   <script type="module" src="./programador.js"></script>
 </body>

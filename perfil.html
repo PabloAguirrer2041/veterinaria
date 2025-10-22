@@ -136,6 +136,7 @@
 
   // --- Carga de Datos ---
   async function loadProfile(session) {
+    // Revisa si es doctor
     const isDoctor = session && session.user.email.endsWith('@doctores.local');
     
     // Limpiar el estado
@@ -157,6 +158,7 @@
       logoutArea.classList.add("hide");
       sessionState.textContent = "";
 
+      // Usamos la vista pública que creamos en el SQL
       const { data, error } = await supa.from('mascotas_perfil_publico').select('*').eq('id', petId).single();
       if (error) console.error("Error (Público):", error);
       render(data, 'public');

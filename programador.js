@@ -20,6 +20,8 @@ function setOnline(on){
   $("#docPwd").disabled = on;
 }
 function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
+
+// ACTUALIZADO: Rellena el nuevo campo y genera el link
 function fillForm(p){
   $("#f_nombre").value = p?.nombre || "";
   $("#f_raza").value   = p?.raza   || "";
@@ -29,9 +31,16 @@ function fillForm(p){
   $("#f_tel").value    = p?.telefono || "";
   $("#f_email").value  = p?.email || "";
   $("#f_hist").value   = p?.historial || "";
-  $("#f_email").value  = p?.email || "";
-  $("#f_hist").value   = p?.historial || "";
-  $("#f_notas_publicas").value = p?.notas_publicas || ""; // <-- AÑADIR ESTA LÍNEA
+  $("#f_notas_publicas").value = p?.notas_publicas || ""; // AÑADIDO
+
+  // AÑADIDO: Genera el link si el perfil ya existe
+  if (p?.id) {
+    const link = `perfil.html?id=${p.id}`;
+    $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
+  } else {
+    // Si es un formulario vacío, limpia el link
+    $("#newLink").innerHTML = "";
+  }
 }
 
 /* --------- Auth (CORREGIDO) --------- */
@@ -71,7 +80,7 @@ async function uploadPhoto(file){
   return data.publicUrl || null;
 }
 
-/* --------- CRUD --------- */
+/* --------- CRUD (ACTUALIZADO) --------- */
 async function saveNew(){
   if(!user) return alert("Inicia sesión para guardar.");
   const supa = await getSupa();
@@ -88,8 +97,8 @@ async function saveNew(){
     duenio:   $("#f_duenio").value.trim(),
     telefono: $("#f_tel").value.trim(),
     email:    $("#f_email").value.trim(),
-    historial: $("#f_hist").value.trim(),
-    notas_publicas: $("#f_notas_publicas").value.trim(), // <-- AÑADIR ESTA LÍNEA
+    historial:$("#f_hist").value.trim(),
+    notas_publicas: $("#f_notas_publicas").value.trim(), // AÑADIDO
     foto_url,
     owner_id: user.id
   };
@@ -102,8 +111,8 @@ async function saveNew(){
     current = { id:data.id, ...payload }; 
     $("#btnUpdate").disabled=false; 
     $("#btnDelete").disabled=false;
-
-    // <-- AÑADIR ESTAS 3 LÍNEAS PARA MOSTRAR EL LINK -->
+    
+    // AÑADIDO: Muestra el link al crear
     const link = `perfil.html?id=${data.id}`;
     $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
     window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
@@ -129,12 +138,18 @@ async function updateCurrent(){
     telefono: $("#f_tel").value.trim(),
     email:    $("#f_email").value.trim(),
     historial:$("#f_hist").value.trim(),
+    notas_publicas: $("#f_notas_publicas").value.trim(), // AÑADIDO
     foto_url
   };
 
   const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
   if(error){ logMsg("✖ Update: " + error.message); }
-  else { logMsg("✅ Actualizado ID " + current.id); }
+  else { 
+    logMsg("✅ Actualizado ID " + current.id); 
+    // AÑADIDO: Asegura que el link esté visible tras actualizar
+    const link = `perfil.html?id=${current.id}`;
+    $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
+  }
   $("#btnUpdate").disabled = false;
 }
 
@@ -150,6 +165,7 @@ async function deleteCurrent(){
   $("#btnUpdate").disabled = true;
   $("#btnDelete").disabled = true;
   $("#results").innerHTML = "";
+  $("#newLink").innerHTML = ""; // Limpia el link
 }
 
 async function search(){
@@ -161,7 +177,8 @@ async function search(){
 
   let query = supa
     .from("mascotas")
-    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url")
+    // AÑADIDO: Pide la nueva columna 'notas_publicas' en la búsqueda
+    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url,notas_publicas")
     .order("id",{ascending:false}).limit(20);
 
   const n = Number(q);
