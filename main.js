@@ -1,4 +1,4 @@
-// main.js — inicializa Supabase una sola vez con multi-fallback robusto
+// main.js — CORREGIDO (Sin bucle infinito)
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
@@ -53,7 +53,9 @@ export async function getSupa(){
     });
 
     if (!authBound){
-      // CORRECCIÓN 1: Usar (event, session) directamente, no llamar a getSession()
+      // ¡ESTA ES LA CORRECCIÓN!
+      // Usamos (event, session) que nos da el listener.
+      // NO volvemos a llamar a supa.auth.getSession().
       supa.auth.onAuthStateChange((event, session)=>{
         const user = session?.user || null;
         for (const cb of [...listeners]) try{ cb(user); }catch{}
@@ -61,8 +63,7 @@ export async function getSupa(){
       authBound = true;
     }
 
-    // CORRECCIÓN 2: Se eliminó el "primer emit" redundante.
-    // onAuthStateChange se dispara solo al cargar.
+    // Se eliminó el "primer emit" redundante.
 
     return supa;
   })();
@@ -71,7 +72,7 @@ export async function getSupa(){
 }
 
 export function onSession(cb){
-  // CORRECCIÓN 3: Se eliminó la llamada redundante a getSession()
+  // Se eliminó la llamada redundante a getSession()
   listeners.add(cb);
   return ()=>listeners.delete(cb);
 }
