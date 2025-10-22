@@ -215,9 +215,14 @@
     });
     
     // 4. Monitorear cambios de sesión y cargar el perfil
-    //    Esta lógica NO tiene el bucle infinito.
     supa.auth.onAuthStateChange(async (_evt, session) => {
-      // El 'await' aquí es clave para evitar la "Race Condition"
+      
+      // ---- INICIO DE LA CORRECCIÓN (Race Condition) ----
+      // Damos 250ms para que el token de sesión se propague
+      // antes de hacer la consulta a la base de datos.
+      await new Promise(resolve => setTimeout(resolve, 250)); 
+      // ---- FIN DE LA CORRECCIÓN ----
+
       await loadProfile(session);
     });
   }

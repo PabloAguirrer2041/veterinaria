@@ -1,5 +1,66 @@
-// programador.js — lógica de la página del doctor
-import { getSupa, onSession, idToEmail, ready } from "./main.js";
+// programador.js (VERSIÓN AUTÓNOMA - NO USA MAIN.JS)
+
+// =========================================================
+// INICIO: Lógica de Supabase (reemplaza a main.js)
+// =========================================================
+const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
+
+let supa = null;
+const listeners = new Set();
+let authBound = false;
+let supaPromise = null;
+
+async function getSupa(){
+  if (supa) return supa;
+  if (supaPromise) return supaPromise;
+
+  supaPromise = (async () => {
+    // 1. Esperar a que supabase.min.js cargue
+    while (!window.supabase) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    // 2. Crear el cliente
+    supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    });
+
+    // 3. Configurar el listener (¡EL CORRECTO, SIN BUCLE!)
+    if (!authBound){
+      supa.auth.onAuthStateChange((event, session)=>{
+        const user = session?.user || null;
+        for (const cb of [...listeners]) try{ cb(user); }catch{}
+      });
+      authBound = true;
+    }
+    
+    // 4. Emitir el estado inicial para 'onSession'
+    const { data:{ session } } = await supa.auth.getSession();
+    const user = session?.user || null;
+    for (const cb of [...listeners]) try{ cb(user); }catch{}
+
+    return supa;
+  })();
+  
+  return supaPromise;
+}
+
+function onSession(cb){
+  listeners.add(cb);
+  return ()=>listeners.delete(cb);
+}
+
+function ready(fn){
+  if (document.readyState !== "loading") fn();
+  else document.addEventListener("DOMContentLoaded", fn, { once:true });
+}
+// =========================================================
+// FIN: Lógica de Supabase
+// =========================================================
+
+
+// --- Lógica de la página del Doctor ---
 
 const $ = (s)=>document.querySelector(s);
 const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID()
@@ -21,10 +82,6 @@ function setOnline(on){
 }
 function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
 
-// =================================================================
-// ¡ESTA ES LA FUNCIÓN CORREGIDA!
-// Rellena el formulario y TAMBIÉN genera el link del perfil
-// =================================================================
 function fillForm(p){
   $("#f_nombre").value = p?.nombre || "";
   $("#f_raza").value   = p?.raza   || "";
@@ -36,18 +93,15 @@ function fillForm(p){
   $("#f_hist").value   = p?.historial || "";
   $("#f_notas_publicas").value = p?.notas_publicas || "";
 
-  // LÓGICA DEL LINK AÑADIDA AQUÍ
   if (p?.id) {
     const link = `perfil.html?id=${p.id}`;
-    // Esto escribe el link en el div "#newLink" que está en tu HTML
     $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
   } else {
-    // Si es un formulario vacío (p.ej. después de borrar), limpia el link
     $("#newLink").innerHTML = "";
   }
 }
 
-/* --------- Auth (CORREGIDO) --------- */
+/* --------- Auth --------- */
 async function doLogin(){
   try{
     const supa = await getSupa();
@@ -80,7 +134,7 @@ async function uploadPhoto(file){
   return data.publicUrl || null;
 }
 
-/* --------- CRUD (ACTUALIZADO) --------- */
+/* --------- CRUD --------- */
 async function saveNew(){
   if(!user) return alert("Inicia sesión para guardar.");
   const supa = await getSupa();
@@ -112,7 +166,6 @@ async function saveNew(){
     $("#btnUpdate").disabled=false; 
     $("#btnDelete").disabled=false;
     
-    // Muestra el link al crear
     const link = `perfil.html?id=${data.id}`;
     $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
     window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
@@ -146,7 +199,6 @@ async function updateCurrent(){
   if(error){ logMsg("✖ Update: " + error.message); }
   else { 
     logMsg("✅ Actualizado ID " + current.id); 
-    // Asegura que el link esté visible tras actualizar
     const link = `perfil.html?id=${current.id}`;
     $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
   }
@@ -165,8 +217,6 @@ async function deleteCurrent(){
   $("#btnUpdate").disabled = true;
   $("#btnDelete").disabled = true;
   $("#results").innerHTML = "";
-  
-  // Limpia el formulario Y el link
   fillForm({});
 }
 
@@ -179,7 +229,7 @@ async function search(){
 
   let query = supa
     .from("mascotas")
-    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url,notas_publicas") // Pide la nueva columna
+    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url,notas_publicas")
     .order("id",{ascending:false}).limit(20);
 
   const n = Number(q);
@@ -205,7 +255,6 @@ async function search(){
         </div>
         <div class="muted">Dueño: ${p.duenio || "—"}</div>
       </div>`;
-    // ESTA LÍNEA LLAMA A fillForm CUANDO HACES CLIC
     card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
     results.appendChild(card);
   });
@@ -213,6 +262,16 @@ async function search(){
 
 /* --------- Arranque --------- */
 ready(async ()=>{
+  // Primero, nos aseguramos de que Supabase esté listo
+  try { 
+    await getSupa(); 
+  } catch(e){ 
+    console.error("[getSupa] falló al inicializar", e); 
+    alert("Error crítico: No se pudo cargar Supabase. Revisa la consola.");
+    return;
+  }
+  
+  // Ahora configuramos los listeners
   $("#btnLogin").addEventListener("click", doLogin);
   $("#btnLogout").addEventListener("click", doLogout);
   $("#btnSearch").addEventListener("click", search);
@@ -222,6 +281,7 @@ ready(async ()=>{
   $("#btnDelete").addEventListener("click", deleteCurrent);
   $("#y").textContent = new Date().getFullYear();
 
+  // Y nos suscribimos a los cambios de sesión
   onSession(u=>{
     user = u;
     const sEl = $("#sessionState");
@@ -237,6 +297,4 @@ ready(async ()=>{
       setOnline(false);
     }
   });
-
-  try { await getSupa(); } catch(e){ console.warn("[getSupa] fallback/espera", e); }
 });
