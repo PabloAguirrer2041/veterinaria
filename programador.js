@@ -21,7 +21,10 @@ function setOnline(on){
 }
 function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
 
-// ACTUALIZADO: Rellena el nuevo campo y genera el link
+// =================================================================
+// ¡ESTA ES LA FUNCIÓN CORREGIDA!
+// Rellena el formulario y TAMBIÉN genera el link del perfil
+// =================================================================
 function fillForm(p){
   $("#f_nombre").value = p?.nombre || "";
   $("#f_raza").value   = p?.raza   || "";
@@ -31,14 +34,15 @@ function fillForm(p){
   $("#f_tel").value    = p?.telefono || "";
   $("#f_email").value  = p?.email || "";
   $("#f_hist").value   = p?.historial || "";
-  $("#f_notas_publicas").value = p?.notas_publicas || ""; // AÑADIDO
+  $("#f_notas_publicas").value = p?.notas_publicas || "";
 
-  // AÑADIDO: Genera el link si el perfil ya existe
+  // LÓGICA DEL LINK AÑADIDA AQUÍ
   if (p?.id) {
     const link = `perfil.html?id=${p.id}`;
+    // Esto escribe el link en el div "#newLink" que está en tu HTML
     $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
   } else {
-    // Si es un formulario vacío, limpia el link
+    // Si es un formulario vacío (p.ej. después de borrar), limpia el link
     $("#newLink").innerHTML = "";
   }
 }
@@ -47,15 +51,11 @@ function fillForm(p){
 async function doLogin(){
   try{
     const supa = await getSupa();
-    // CORRECCIÓN: Lee el email directamente, no el 'raw id'
     const email = ($("#docId").value || "").trim();
-    const pwd = $("#docPwd").value || "";
+    const pwd = ($("#docPwd").value || "").trim();
     
-    // CORRECCIÓN: Mensaje de alerta actualizado
     if (!email || !pwd) return alert("Escribe Correo y contraseña");
     
-    // CORRECCIÓN: Se eliminó la línea "const email = idToEmail(raw);"
-
     const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
     if (error) return alert(`Error al iniciar sesión: ${error.message}`);
     $("#docPwd").value = "";
@@ -98,7 +98,7 @@ async function saveNew(){
     telefono: $("#f_tel").value.trim(),
     email:    $("#f_email").value.trim(),
     historial:$("#f_hist").value.trim(),
-    notas_publicas: $("#f_notas_publicas").value.trim(), // AÑADIDO
+    notas_publicas: $("#f_notas_publicas").value.trim(),
     foto_url,
     owner_id: user.id
   };
@@ -112,7 +112,7 @@ async function saveNew(){
     $("#btnUpdate").disabled=false; 
     $("#btnDelete").disabled=false;
     
-    // AÑADIDO: Muestra el link al crear
+    // Muestra el link al crear
     const link = `perfil.html?id=${data.id}`;
     $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
     window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
@@ -138,7 +138,7 @@ async function updateCurrent(){
     telefono: $("#f_tel").value.trim(),
     email:    $("#f_email").value.trim(),
     historial:$("#f_hist").value.trim(),
-    notas_publicas: $("#f_notas_publicas").value.trim(), // AÑADIDO
+    notas_publicas: $("#f_notas_publicas").value.trim(),
     foto_url
   };
 
@@ -146,7 +146,7 @@ async function updateCurrent(){
   if(error){ logMsg("✖ Update: " + error.message); }
   else { 
     logMsg("✅ Actualizado ID " + current.id); 
-    // AÑADIDO: Asegura que el link esté visible tras actualizar
+    // Asegura que el link esté visible tras actualizar
     const link = `perfil.html?id=${current.id}`;
     $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
   }
@@ -165,7 +165,9 @@ async function deleteCurrent(){
   $("#btnUpdate").disabled = true;
   $("#btnDelete").disabled = true;
   $("#results").innerHTML = "";
-  $("#newLink").innerHTML = ""; // Limpia el link
+  
+  // Limpia el formulario Y el link
+  fillForm({});
 }
 
 async function search(){
@@ -177,8 +179,7 @@ async function search(){
 
   let query = supa
     .from("mascotas")
-    // AÑADIDO: Pide la nueva columna 'notas_publicas' en la búsqueda
-    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url,notas_publicas")
+    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url,notas_publicas") // Pide la nueva columna
     .order("id",{ascending:false}).limit(20);
 
   const n = Number(q);
@@ -204,7 +205,7 @@ async function search(){
         </div>
         <div class="muted">Dueño: ${p.duenio || "—"}</div>
       </div>`;
-    card.style.cursor = "pointer";
+    // ESTA LÍNEA LLAMA A fillForm CUANDO HACES CLIC
     card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
     results.appendChild(card);
   });
