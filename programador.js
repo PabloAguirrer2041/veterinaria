@@ -1,7 +1,7 @@
-// programador.js (VERSIÓN FINAL - URL DIRECTA)
+// programador.js (VERSIÓN FINAL COMPLETA)
 
 // =========================================================
-// INICIO: Lógica de Supabase (Integrada)
+// 1. CONFIGURACIÓN E INICIALIZACIÓN DE SUPABASE
 // =========================================================
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
@@ -11,12 +11,13 @@ const listeners = new Set();
 let authBound = false;
 let supaPromise = null;
 
+// Función para obtener el cliente de Supabase (Singleton)
 async function getSupa(){
   if (supa) return supa;
   if (supaPromise) return supaPromise;
 
   supaPromise = (async () => {
-    // 1. Esperar a que supabase.min.js cargue desde el HTML
+    // Esperar a que la librería se cargue desde el CDN en el HTML
     while (!window.supabase) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
@@ -33,6 +34,7 @@ async function getSupa(){
       authBound = true;
     }
     
+    // Emitir estado inicial
     const { data:{ session } } = await supa.auth.getSession();
     const user = session?.user || null;
     for (const cb of [...listeners]) try{ cb(user); }catch{}
@@ -56,10 +58,10 @@ function ready(fn){
   if (document.readyState !== "loading") fn();
   else document.addEventListener("DOMContentLoaded", fn, { once:true });
 }
+
 // =========================================================
-
-
-// --- Lógica de la página del Doctor ---
+// 2. LÓGICA DE LA INTERFAZ DEL DOCTOR
+// =========================================================
 
 const $ = (s)=>document.querySelector(s);
 const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID()
@@ -73,27 +75,34 @@ function setOnline(on){
   pill.textContent = on ? "online" : "offline";
   pill.style.background = on ? "#e8fbfb" : "#ffeaea";
   pill.style.color = on ? "#075e59" : "#8b1a1a";
+  
   $("#btnSave").disabled   = !on;
   $("#btnUpdate").disabled = !on || !current;
   $("#btnDelete").disabled = !on || !current;
+  
   const disableAuthFields = on && user; 
   $("#docId").disabled = disableAuthFields;
   $("#docPwd").disabled = disableAuthFields;
 }
-function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
 
-// --- FUNCIÓN QUE GENERA LA URL EN TEXTO (MODIFICADA) ---
+function logMsg(m){ 
+  const el=$("#log"); 
+  el.classList.remove("hide"); 
+  el.textContent += m + "\n"; 
+  el.scrollTop = el.scrollHeight; 
+}
+
+// --- GENERADOR DE LINK (CAJA DE TEXTO) ---
 function showLink(id) {
-  // Crea la URL completa usando el dominio actual
   const fullUrl = window.location.origin + `/perfil.html?id=${id}`;
   
-  // Inserta un input de texto en lugar de un enlace <a>
   $("#newLink").innerHTML = `
     <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">URL del Perfil Público (Copiar):</label>
     <input type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
   `;
 }
 
+// --- RELLENAR FORMULARIO ---
 function fillForm(p){
   $("#f_nombre").value = p?.nombre || "";
   $("#f_raza").value   = p?.raza   || "";
@@ -104,15 +113,18 @@ function fillForm(p){
   $("#f_email").value  = p?.email || "";
   $("#f_hist").value   = p?.historial || "";
   $("#f_notas_publicas").value = p?.notas_publicas || "";
+  
+  // NUEVO: Checkbox de privacidad
+  $("#f_contacto_publico").checked = !!p?.contacto_publico;
 
   if (p?.id) {
-    showLink(p.id); // Llamamos a la nueva función
+    showLink(p.id);
   } else {
     $("#newLink").innerHTML = "";
   }
 }
 
-/* --------- Auth --------- */
+/* --------- Autenticación --------- */
 async function doLogin(){
   try{
     const supa = await getSupa();
@@ -123,9 +135,11 @@ async function doLogin(){
     
     const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
     if (error) return alert(`Error: ${error.message}`);
+    
     $("#docPwd").value = "";
   }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
 }
+
 async function doLogout(){
   try{
     const supa = await getSupa();
@@ -133,19 +147,21 @@ async function doLogout(){
   }catch(e){ console.warn("[logout]", e); }
 }
 
-/* --------- Storage --------- */
+/* --------- Storage (Fotos) --------- */
 async function uploadPhoto(file){
   if(!file) return null;
   const supa = await getSupa();
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `mascotas/${uuid()}.${ext}`;
+  
   const { error } = await supa.storage.from("fotos").upload(path, file, { upsert:false });
   if (error){ logMsg("⚠️ Upload: " + error.message); return null; }
+  
   const { data } = supa.storage.from("fotos").getPublicUrl(path);
   return data.publicUrl || null;
 }
 
-/* --------- CRUD --------- */
+/* --------- CRUD (Guardar, Actualizar, Borrar) --------- */
 async function saveNew(){
   if(!user) return alert("Inicia sesión para guardar.");
   const supa = await getSupa();
@@ -164,20 +180,24 @@ async function saveNew(){
     email:    $("#f_email").value.trim(),
     historial:$("#f_hist").value.trim(),
     notas_publicas: $("#f_notas_publicas").value.trim(),
+    contacto_publico: $("#f_contacto_publico").checked, // NUEVO
     foto_url,
     owner_id: user.id
   };
+
   if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
   const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
-  if(error){ logMsg("✖ Insert: " + error.message); }
-  else { 
+  
+  if(error){ 
+    logMsg("✖ Insert: " + error.message); 
+  } else { 
     logMsg("✅ Guardado ID " + data.id); 
     current = { id:data.id, ...payload }; 
     $("#btnUpdate").disabled=false; 
     $("#btnDelete").disabled=false;
     
-    showLink(data.id); // Muestra la URL al guardar
+    showLink(data.id); 
     window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
   }
   $("#btnSave").disabled = false;
@@ -202,14 +222,17 @@ async function updateCurrent(){
     email:    $("#f_email").value.trim(),
     historial:$("#f_hist").value.trim(),
     notas_publicas: $("#f_notas_publicas").value.trim(),
+    contacto_publico: $("#f_contacto_publico").checked, // NUEVO
     foto_url
   };
 
   const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
-  if(error){ logMsg("✖ Update: " + error.message); }
-  else { 
+  
+  if(error){ 
+    logMsg("✖ Update: " + error.message); 
+  } else { 
     logMsg("✅ Actualizado ID " + current.id); 
-    showLink(current.id); // Muestra la URL al actualizar
+    showLink(current.id); 
   }
   $("#btnUpdate").disabled = false;
 }
@@ -217,16 +240,24 @@ async function updateCurrent(){
 async function deleteCurrent(){
   if(!user || !current) return;
   if(!confirm(`¿Eliminar registro ID ${current.id}?`)) return;
+  
   const supa = await getSupa();
   $("#btnDelete").disabled = true;
+  
   const { error } = await supa.from("mascotas").delete().eq("id", current.id);
-  if(error){ logMsg("✖ Delete: " + error.message); $("#btnDelete").disabled=false; return; }
+  
+  if(error){ 
+    logMsg("✖ Delete: " + error.message); 
+    $("#btnDelete").disabled=false; 
+    return; 
+  }
+  
   logMsg("🗑️ Eliminado ID " + current.id);
   current = null;
   $("#btnUpdate").disabled = true;
   $("#btnDelete").disabled = true;
   $("#results").innerHTML = "";
-  fillForm({});
+  fillForm({}); // Limpia todo
 }
 
 async function search(){
@@ -234,11 +265,13 @@ async function search(){
   const q = $("#q").value.trim();
   const results = $("#results");
   results.innerHTML = "";
+  
   if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
 
+  // Seleccionamos TODOS los campos necesarios, incluidos los nuevos
   let query = supa
     .from("mascotas")
-    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url,notas_publicas")
+    .select("id,nombre,raza,edad,sexo,duenio,telefono,email,historial,foto_url,notas_publicas,contacto_publico")
     .order("id",{ascending:false}).limit(20);
 
   const n = Number(q);
@@ -247,6 +280,7 @@ async function search(){
     : query.ilike("nombre", `%${q}%`);
 
   const { data, error } = await query;
+  
   if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
   if(!data?.length){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
 
@@ -264,16 +298,26 @@ async function search(){
         </div>
         <div class="muted">Dueño: ${p.duenio || "—"}</div>
       </div>`;
-    card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
+    
+    card.onclick = ()=>{ 
+      current = p; 
+      fillForm(p); 
+      $("#btnUpdate").disabled=false; 
+      $("#btnDelete").disabled=false; 
+      window.scrollTo({top:0,behavior:'smooth'}); 
+    };
+    
     results.appendChild(card);
   });
 }
 
+/* --------- Arranque (Listeners) --------- */
 ready(async ()=>{
   try { 
     await getSupa(); 
   } catch(e){ 
     console.error(e);
+    setOnline(false);
     return;
   }
   
