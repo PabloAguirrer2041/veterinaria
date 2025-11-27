@@ -81,8 +81,8 @@
   let supa = null;
   let currentUser = null;
 
-  // --- DOM ---
-  const $ = (id) => document.getElementById(id);
+  // --- DOM (CORREGIDO: Se usa querySelector para que funcionen los #IDs) ---
+  const $ = (selector) => document.querySelector(selector);
   
   // --- INICIO ---
   window.onload = async () => {
@@ -90,13 +90,13 @@
     if(!window.supabase) return alert("Error al cargar sistema.");
     supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 2. Configurar Auth Listeners
-    $('#btnLogin').onclick = handleLogin;
-    $('#btnLogout').onclick = handleLogout;
+    // 2. Configurar Auth Listeners (Con chequeo de seguridad)
+    if($('#btnLogin')) $('#btnLogin').onclick = handleLogin;
+    if($('#btnLogout')) $('#btnLogout').onclick = handleLogout;
     
     // 3. Configurar Búsqueda
-    $('#btnSearch').onclick = performSearch;
-    $('#q').addEventListener('keypress', (e) => { if(e.key === 'Enter') performSearch(); });
+    if($('#btnSearch')) $('#btnSearch').onclick = () => performSearch();
+    if($('#q')) $('#q').addEventListener('keypress', (e) => { if(e.key === 'Enter') performSearch(); });
 
     // 4. Verificar Sesión
     const { data: { session } } = await supa.auth.getSession();
@@ -112,26 +112,35 @@
   function updateSessionUI(session) {
     currentUser = session?.user || null;
     
+    // Validar que los elementos existan antes de manipularlos
+    const lblSession = $('#sessionText');
+    const btnIn = $('#btnLogin');
+    const btnOut = $('#btnLogout');
+    const title = $('#pageTitle');
+    const desc = $('#pageDesc');
+
     if (currentUser) {
-      $('#sessionText').textContent = currentUser.email;
-      $('#btnLogin').classList.add('hide');
-      $('#btnLogout').classList.remove('hide');
-      $('#pageTitle').textContent = "Mis Mascotas y Búsqueda";
-      $('#pageDesc').textContent = "Estás conectado. Puedes ver la información completa de tus mascotas.";
-      // Opcional: Cargar mascotas del usuario automáticamente
+      if(lblSession) lblSession.textContent = currentUser.email;
+      if(btnIn) btnIn.classList.add('hide');
+      if(btnOut) btnOut.classList.remove('hide');
+      if(title) title.textContent = "Mis Mascotas y Búsqueda";
+      if(desc) desc.textContent = "Estás conectado. Puedes ver la información completa de tus mascotas.";
+      // Cargar mascotas del usuario automáticamente
       performSearch(''); 
     } else {
-      $('#sessionText').textContent = "Visitante";
-      $('#btnLogin').classList.remove('hide');
-      $('#btnLogout').classList.add('hide');
-      $('#pageTitle').textContent = "Buscar Mascota";
-      $('#pageDesc').textContent = "Escribe el nombre o ID para ver perfiles públicos.";
-      $('#results').innerHTML = ''; // Limpiar resultados al salir
+      if(lblSession) lblSession.textContent = "Visitante";
+      if(btnIn) btnIn.classList.remove('hide');
+      if(btnOut) btnOut.classList.add('hide');
+      if(title) title.textContent = "Buscar Mascota";
+      if(desc) desc.textContent = "Escribe el nombre o ID para ver perfiles públicos.";
+      if($('#results')) $('#results').innerHTML = ''; 
     }
   }
 
   function renderResults(data) {
     const container = $('#results');
+    if(!container) return;
+    
     container.innerHTML = '';
 
     if (!data || data.length === 0) {
@@ -141,7 +150,6 @@
 
     data.forEach(pet => {
       const foto = pet.foto_url || "https://via.placeholder.com/150?text=Sin+Foto";
-      const isOwner = currentUser && pet.email === currentUser.email;
       
       let html = `
         <div class="pet-item">
@@ -157,7 +165,7 @@
       `;
 
       if (currentUser) {
-        // VISTA DUEÑO (LOGUEADO) - Muestra todo si es suyo
+        // VISTA DUEÑO (LOGUEADO)
         html += `
             <div style="margin-top:8px; font-size:14px; border-top:1px dashed #eee; padding-top:8px;">
               <div><strong>Dueño:</strong> ${pet.duenio || '-'}</div>
@@ -165,10 +173,11 @@
               <div style="margin-top:4px; color:#555; font-size:13px;">
                 <strong>Historial:</strong> ${pet.historial ? pet.historial.substring(0, 100) + '...' : 'Sin historial'}
               </div>
+              <button class="btn-link" style="margin-top:5px;" onclick="window.location.href='perfil.html?id=${pet.id}'">Ver perfil completo</button>
             </div>
         `;
       } else {
-        // VISTA VISITANTE (PÚBLICA) - Muestra aviso
+        // VISTA VISITANTE (PÚBLICA)
         html += `
             <div class="locked-msg">
               🔒 Datos de contacto ocultos. 
@@ -187,26 +196,26 @@
 
   // --- LOGIC ---
   async function performSearch(forceQuery = null) {
-    const q = forceQuery !== null ? forceQuery : $('#q').value.trim();
+    const qEl = $('#q');
+    const q = forceQuery !== null ? forceQuery : (qEl ? qEl.value.trim() : '');
     
     // Si no hay texto y no es usuario logueado cargando sus datos, no buscar
     if (!q && !currentUser) return; 
 
-    $('#results').innerHTML = '<div style="text-align:center; color:#999;">Buscando...</div>';
+    const container = $('#results');
+    if(container) container.innerHTML = '<div style="text-align:center; color:#999;">Buscando...</div>';
 
     try {
       let query;
       
       if (currentUser) {
         // --- DUEÑO: Busca en tabla 'mascotas' (privada) ---
-        // RLS ya filtra por email automáticamente, así que traemos todo lo que coincida
         query = supa
           .from('mascotas')
           .select('*')
           .order('id', { ascending: false });
           
         if (q) {
-          // Si es número, busca por ID o Nombre. Si es texto, solo nombre.
           if (!isNaN(q) && q !== '') {
              query = query.or(`id.eq.${q},nombre.ilike.%${q}%`);
           } else {
@@ -236,7 +245,7 @@
 
     } catch (e) {
       console.error(e);
-      $('#results').innerHTML = `<div style="color:red; text-align:center;">Error: ${e.message}</div>`;
+      if(container) container.innerHTML = `<div style="color:red; text-align:center;">Error: ${e.message}</div>`;
     }
   }
 
@@ -255,7 +264,6 @@
 
   async function handleLogout() {
     await supa.auth.signOut();
-    // La UI se actualiza sola gracias al onAuthStateChange
   }
 
 </script>
