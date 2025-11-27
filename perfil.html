@@ -4,244 +4,148 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Perfil de Mascota</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
   <style>
-    :root{
-      --bg:#f6f9fb; --card:#fff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4;
-      --shadow: 0 10px 30px rgba(16,24,40,.06);
-    }
-    *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
-    .container{max-width:700px;margin:auto;padding:20px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px 22px}
-    h1{margin:0 0 12px; font-size: 28px;}
-    .muted{color:var(--muted)}
-    img.profile{width:120px;height:120px;object-fit:cover;border-radius:14px;border:1px solid var(--line); margin-bottom: 12px;}
-    .grid{display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin-top: 10px;}
-    .grid strong{display:block; font-size: 13px; color: var(--muted); text-transform: uppercase;}
-    .grid span{font-size: 16px;}
-    .full{grid-column: 1 / -1;}
-    .historial{white-space: pre-wrap; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid var(--line); max-height: 300px; overflow-y: auto;}
-    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px; flex-wrap: wrap;}
-    .link{color:var(--brand);font-weight:700;text-decoration:none}
-    .login-box{display:flex; gap: 8px; align-items: center;}
-    .login-box input{padding: 8px; border-radius: 8px; border: 1px solid var(--line);}
-    .btn{border:1px solid var(--line);background:#fff;padding:8px 12px;border-radius:12px;font-weight:700;cursor:pointer}
-    .btn--brand{background:var(--brand);border-color:var(--brand);color:#fff}
-    .hide{display:none}
+    :root{ --bg:#f6f9fb; --card:#fff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4; }
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,sans-serif;padding:20px;}
+    .container{max-width:600px;margin:auto;}
+    .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);}
+    img.profile{width:100%;height:250px;object-fit:cover;border-radius:12px;margin-bottom:15px;background:#eee;}
+    h1{margin:0 0 10px;}
+    .row{display:flex;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:8px;}
+    .label{font-weight:600;color:var(--muted);}
+    .btn{background:var(--brand);color:#fff;border:none;padding:10px 15px;border-radius:8px;font-weight:bold;cursor:pointer;width:100%;margin-top:10px;}
+    #debugLog{margin-top:20px;padding:10px;background:#000;color:#0f0;font-family:monospace;font-size:12px;border-radius:8px;white-space:pre-wrap;}
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="topbar">
-      <a class="link" href="index.html">← Volver al inicio</a>
-      <div id="loginArea">
-        <button id="btnLogin" class="btn">Acceso Doctor</button>
-      </div>
-      <div id="logoutArea" class="hide">
-        <span class="muted" id="sessionState"></span>
-        <button id="btnLogout" class="btn">Cerrar sesión</button>
-      </div>
-    </div>
 
-    <div class="card" id="profileCard">
-      <h1 class="muted">Cargando perfil...</h1>
-    </div>
-
-    <div id="doctorLogin" class="card hide" style="margin-top: 16px;">
-      <h2>Acceso de Doctor</h2>
-      <div class="login-box">
-        <input id="docEmail" type="email" placeholder="correo@doctores.local">
-        <input id="docPwd" type="password" placeholder="Contraseña">
-        <button id="btnSubmitLogin" class="btn btn--brand">Entrar</button>
-      </div>
-    </div>
+<div class="container">
+  <div class="card" id="mainCard">
+    <h2 style="text-align:center; color: var(--muted);">Cargando sistema...</h2>
   </div>
+  
+  <div id="debugLog">Iniciando diagnóstico...</div>
+</div>
 
- <script src="./supabase.min.js" defer></script>
- 
- <script type="module">
-  const $ = (s) => document.querySelector(s);
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
-  // --- Constantes de Supabase ---
+<script>
+  // --- CONFIGURACIÓN ---
   const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-  // --- Elementos UI ---
-  const profileCard = $("#profileCard");
-  const loginArea = $("#loginArea");
-  const logoutArea = $("#logoutArea");
-  const sessionState = $("#sessionState");
-  const doctorLogin = $("#doctorLogin");
-
-  let petId = null;
-  let supa = null;
-
-  // --- Renderizado ---
-  function render(pet, mode = 'public') {
-    if (!pet) {
-      profileCard.innerHTML = "<h1>Error 404</h1><p>No se encontró el perfil de esta mascota. Revisa que el ID sea correcto.</p>";
-      return;
-    }
-    
-    const foto = pet.foto_url || "img/perrito.jpg";
-    const isDoctor = mode === 'doctor';
-    
-    // Vista Pública (Lost Pet)
-    let publicView = `
-      <h1>${pet.nombre}</h1>
-      <img src="${foto}" alt="${pet.nombre}" class="profile">
-      <div class="grid">
-        <div class="full">
-          <strong>En caso de extravío, contactar a:</strong>
-          <span>${pet.duenio || 'No especificado'}</span>
-        </div>
-        <div>
-          <strong>Teléfono:</strong>
-          <span>${pet.telefono || 'No especificado'}</span>
-        </div>
-        <div>
-          <strong>Sexo:</strong>
-          <span>${pet.sexo || 'No especificado'}</span>
-        </div>
-        <div class="full">
-          <strong>Notas Públicas:</strong>
-          <div class="historial">${pet.notas_publicas || 'Sin notas.'}</div>
-        </div>
-      </div>
-    `;
-    
-    // Vista de Doctor (Info Completa)
-    let doctorView = `
-      <h1>${pet.nombre} <span style="color: var(--brand); font-size: 16px;">(Vista de Doctor)</span></h1>
-      <img src="${foto}" alt="${pet.nombre}" class="profile">
-      <div class="grid">
-        <div><strong>ID:</strong> <span>${pet.id}</span></div>
-        <div><strong>Raza:</strong> <span>${pet.raza || '—'}</span></div>
-        <div><strong>Edad:</strong> <span>${pet.edad || '—'}</span></div>
-        <div><strong>Sexo:</strong> <span>${pet.sexo || '—'}</span></div>
-        <div class="full"><strong>Dueño:</strong> <span>${pet.duenio || '—'}</span></div>
-        <div><strong>Teléfono:</strong> <span>${pet.telefono || '—'}</span></div>
-        <div><strong>Email:</strong> <span>${pet.email || '—'}</span></div>
-        <div class="full">
-          <strong>Notas Públicas:</strong>
-          <div class="historial" style="background: #fff;">${pet.notas_publicas || 'Sin notas.'}</div>
-        </div>
-        <div class="full">
-          <strong>Historial Clínico (Privado):</strong>
-          <div class="historial">${pet.historial || 'Sin historial.'}</div>
-        </div>
-      </div>
-    `;
-    
-    profileCard.innerHTML = isDoctor ? doctorView : publicView;
+  // --- LOGGING EN PANTALLA ---
+  const logBox = document.getElementById('debugLog');
+  function log(msg) {
+    console.log(msg);
+    logBox.textContent += "\n> " + msg;
   }
 
-  // --- Carga de Datos ---
-  async function loadProfile(session) {
-    const isDoctor = session && session.user.email.toLowerCase().endsWith('@doctores.local');
-    
-    doctorLogin.classList.add("hide");
-    
-    if (isDoctor) {
-      // Doctor: Cargar de la tabla 'mascotas' (RLS lo permite)
-      loginArea.classList.add("hide");
-      logoutArea.classList.remove("hide");
-      sessionState.textContent = `Dr. ${session.user.email.split('@')[0]}`;
-      
-      console.log("perfil.html (Doctor): Attempting to load private data...");
-      const { data, error } = await supa.from('mascotas').select('*').eq('id', petId).single();
-      if (error) {
-        console.error("perfil.html (Doctor) - RLS Error:", error.message);
-        profileCard.innerHTML = `<h1>Error de Acceso</h1><p>Aunque estás logueado como Doctor, no se pudieron cargar los datos completos. Revisa las políticas RLS en Supabase.</p><p><small>${error.message}</small></p>`;
+  // --- INICIO ---
+  window.onload = async function() {
+    log("Ventana cargada.");
+
+    if (!window.supabase) {
+      log("ERROR CRÍTICO: La librería de Supabase no cargó desde el CDN.");
+      return;
+    }
+    log("Librería Supabase detectada.");
+
+    try {
+      // 1. Iniciar Cliente
+      const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      log("Cliente Supabase creado.");
+
+      // 2. Obtener ID de la URL
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      log("ID buscado: " + id);
+
+      if (!id) {
+        document.getElementById('mainCard').innerHTML = "<h1>⚠️ Falta ID</h1><p>El enlace está incompleto.</p>";
         return;
       }
-      console.log("perfil.html (Doctor): Data loaded:", data);
-      render(data, 'doctor');
+
+      // 3. Intentar leer la VISTA PÚBLICA primero (sin auth)
+      log("Consultando base de datos (Vista Pública)...");
       
-    } else {
-      // Público: Cargar de la vista 'mascotas_perfil_publico'
-      loginArea.classList.remove("hide");
-      logoutArea.classList.add("hide");
-      sessionState.textContent = "";
+      // NOTA: Usamos 'maybeSingle' para que no lance error si no encuentra nada, solo devuelva null
+      const { data, error } = await supa
+        .from('mascotas_perfil_publico')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
 
-      console.log("perfil.html (Public): Attempting to load public data...");
-      const { data, error } = await supa.from('mascotas_perfil_publico').select('*').eq('id', petId).single();
       if (error) {
-         console.error("perfil.html (Public) - Error loading view:", error.message);
-         profileCard.innerHTML = `<h1>Error</h1><p>No se pudo cargar el perfil público.</p><p><small>${error.message}</small></p>`;
+        log("ERROR SQL: " + error.message);
+        throw error;
       }
-      console.log("perfil.html (Public): Data loaded:", data);
-      render(data, 'public');
+
+      if (!data) {
+        log("No se encontraron datos. Verificando si eres doctor...");
+        // Si no está en la pública, intentamos verificar sesión
+        checkDoctorAccess(supa, id);
+        return;
+      }
+
+      log("¡Datos recibidos! Renderizando...");
+      renderProfile(data);
+
+    } catch (e) {
+      log("EXCEPCIÓN: " + e.message);
+      document.getElementById('mainCard').innerHTML = `<h1>Error</h1><p>${e.message}</p>`;
     }
-  }
-
-  // --- Lógica de Auth (Solo para Doctores) ---
-  $("#btnLogin").onclick = () => {
-    doctorLogin.classList.toggle("hide");
-  };
-  
-  $("#btnLogout").onclick = async () => {
-    await supa.auth.signOut();
-  };
-  
-  $("#btnSubmitLogin").onclick = async () => {
-    const email = $("#docEmail").value;
-    const pwd = $("#docPwd").value;
-    if (!email || !pwd) return alert("Llena ambos campos");
-    
-    const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
-    if (error) return alert(error.message);
-    
-    $("#docPwd").value = "";
-    doctorLogin.classList.add("hide");
   };
 
-  // --- Init ---
-  async function init() {
-    console.log("perfil.html: Initializing...");
-    // 1. Obtener el ID de la URL
-    const urlParams = new URLSearchParams(window.location.search);
-    petId = urlParams.get('id');
-    if (!petId) {
-      profileCard.innerHTML = "<h1>Error</h1><p>ID de mascota no especificado en la URL.</p>";
+  async function checkDoctorAccess(supa, id) {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session) {
+      log("No hay sesión activa y no es público.");
+      document.getElementById('mainCard').innerHTML = "<h1>No encontrado</h1><p>Este perfil no es público.</p><button class='btn' onclick='location.href=\"programador.html\"'>Ir al Login de Doctor</button>";
       return;
     }
-    console.log("perfil.html: Pet ID from URL:", petId);
+
+    log("Sesión detectada: " + session.user.email);
+    // Intento leer tabla privada
+    const { data, error } = await supa.from('mascotas').select('*').eq('id', id).single();
     
-    // 2. Esperar a que supabase.min.js cargue
-    console.log("perfil.html: Waiting for Supabase library...");
-    while (!window.supabase) {
-      await new Promise(resolve => setTimeout(resolve, 50));
+    if (data) {
+      renderProfile(data, true);
+    } else {
+      log("Tampoco se encontró en tabla privada.");
+      document.getElementById('mainCard').innerHTML = "<h1>404</h1><p>Mascota no encontrada.</p>";
     }
-    console.log("perfil.html: Supabase library loaded.");
-
-    // 3. Iniciar Supabase (¡aquí mismo!)
-    supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
-    });
-    console.log("perfil.html: Supabase client created.");
-    
-    // 4. Monitorear cambios de sesión y cargar el perfil
-    supa.auth.onAuthStateChange(async (_evt, session) => {
-      console.log("perfil.html: Auth state changed. Session:", session ? session.user.email : 'null');
-      
-      // ---- INICIO DE LA CORRECCIÓN (Race Condition) ----
-      console.log("perfil.html: Waiting 250ms for token to settle...");
-      await new Promise(resolve => setTimeout(resolve, 250)); 
-      console.log("perfil.html: Wait complete. Loading profile...");
-      // ---- FIN DE LA CORRECCIÓN ----
-
-      await loadProfile(session);
-    });
-    console.log("perfil.html: Auth listener attached.");
   }
 
-  // Llama a init() tan pronto como el DOM esté listo
-  if (document.readyState !== "loading") init();
-  else document.addEventListener("DOMContentLoaded", init, { once:true });
+  function renderProfile(pet, isDoctor = false) {
+    const foto = pet.foto_url || "https://via.placeholder.com/300?text=Sin+Foto";
+    const title = isDoctor ? `(Vista Doctor) ${pet.nombre}` : pet.nombre;
+    
+    const html = `
+      <h1>${title}</h1>
+      <img src="${foto}" class="profile">
+      <div class="row"><span class="label">Raza:</span> <span>${pet.raza || '-'}</span></div>
+      <div class="row"><span class="label">Sexo:</span> <span>${pet.sexo || '-'}</span></div>
+      
+      <div style="background:#fff3cd; padding:10px; border-radius:8px; margin-top:15px;">
+        <div class="label">⚠️ En caso de extravío:</div>
+        <div style="font-size:1.2em; font-weight:bold;">${pet.duenio || 'No registrado'}</div>
+        <div style="font-size:1.2em; color:var(--brand);">${pet.telefono || 'Sin teléfono'}</div>
+      </div>
 
+      <div style="margin-top:15px;">
+        <div class="label">Notas Públicas:</div>
+        <p>${pet.notas_publicas || 'Sin notas adicionales.'}</p>
+      </div>
+      
+      ${isDoctor ? `<div style="margin-top:15px; border-top:2px dashed #ccc; padding-top:10px;">
+        <div class="label">HISTORIAL PRIVADO:</div>
+        <p>${pet.historial || '-'}</p>
+      </div>` : ''}
+    `;
+    document.getElementById('mainCard').innerHTML = html;
+  }
 </script>
 </body>
 </html>
