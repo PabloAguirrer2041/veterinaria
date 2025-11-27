@@ -82,14 +82,15 @@ function setOnline(on){
 }
 function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
 
-// --- FUNCIÓN QUE GENERA EL LINK (MODIFICADA) ---
+// --- FUNCIÓN QUE GENERA LA URL EN TEXTO (MODIFICADA) ---
 function showLink(id) {
-  // Crea la URL completa (ej: https://tudominio.com/perfil.html?id=123)
+  // Crea la URL completa usando el dominio actual
   const fullUrl = window.location.origin + `/perfil.html?id=${id}`;
   
+  // Inserta un input de texto en lugar de un enlace <a>
   $("#newLink").innerHTML = `
-    <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">Link directo para QR (Copia esto):</label>
-    <input type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold;">
+    <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">URL del Perfil Público (Copiar):</label>
+    <input type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
   `;
 }
 
@@ -176,7 +177,7 @@ async function saveNew(){
     $("#btnUpdate").disabled=false; 
     $("#btnDelete").disabled=false;
     
-    showLink(data.id); // Muestra el link al guardar
+    showLink(data.id); // Muestra la URL al guardar
     window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
   }
   $("#btnSave").disabled = false;
@@ -208,7 +209,7 @@ async function updateCurrent(){
   if(error){ logMsg("✖ Update: " + error.message); }
   else { 
     logMsg("✅ Actualizado ID " + current.id); 
-    showLink(current.id); // Muestra el link al actualizar
+    showLink(current.id); // Muestra la URL al actualizar
   }
   $("#btnUpdate").disabled = false;
 }
