@@ -4,116 +4,285 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Perfil de Mascota</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet"/>
   <style>
-    :root{ --bg:#f6f9fb; --card:#fff; --ink:#0f172a; --muted:#5b6b83; --brand:#0ea5a0; --line:#e6eef4; }
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,sans-serif;padding:20px;}
-    .container{max-width:600px;margin:auto;}
-    .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 4px 12px rgba(0,0,0,0.05);}
-    img.profile{width:100%;height:250px;object-fit:cover;border-radius:12px;margin-bottom:15px;background:#eee;}
-    h1{margin:0 0 10px;}
-    .row{display:flex;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:8px;}
-    .label{font-weight:600;color:var(--muted);}
-    .btn{background:var(--brand);color:#fff;border:none;padding:10px 15px;border-radius:8px;font-weight:bold;cursor:pointer;width:100%;margin-top:10px;}
-    .hide{display:none;}
+    :root{
+      --bg:#f0f2f5; --card:#ffffff; --ink:#1e293b; --muted:#64748b; 
+      --brand:#0ea5a0; --brand-light:#e0f7fa;
+      --danger:#ef4444; --warning:#f59e0b; --warning-bg:#fffbeb;
+      --shadow: 0 10px 40px -10px rgba(0,0,0,0.1);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;padding:20px 16px; min-height: 100vh;}
+    
+    .container{max-width:500px;margin:0 auto;}
+    
+    /* Tarjeta Principal */
+    .card{
+      background:var(--card);
+      border-radius:24px;
+      padding:0; /* Padding manejado internamente */
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      position: relative;
+    }
+
+    /* Encabezado con Foto */
+    .header-img-container {
+      width: 100%;
+      height: 320px;
+      background-color: #eee;
+      position: relative;
+    }
+    img.profile{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display: block;
+    }
+    
+    /* Contenido */
+    .content { padding: 24px; }
+
+    /* Título y Badges */
+    h1 { margin:0; font-size: 32px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; color: var(--ink); }
+    .subtitle { color: var(--muted); font-weight: 500; margin-top: 4px; display: flex; align-items: center; gap: 6px;}
+    
+    .badges { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .badge { 
+      background: var(--brand-light); color: var(--brand); 
+      padding: 6px 12px; border-radius: 99px; 
+      font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    /* Tarjeta de Contacto (Extravío) */
+    .contact-card {
+      margin-top: 24px;
+      background: var(--warning-bg);
+      border: 1px solid #fcd34d;
+      border-radius: 16px;
+      padding: 16px;
+      text-align: center;
+    }
+    .contact-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: #b45309; margin-bottom: 8px; display: block;}
+    .owner-name { font-size: 18px; font-weight: 700; color: #78350f; margin-bottom: 12px; }
+    
+    .action-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: #22c55e; color: white; text-decoration: none;
+      padding: 14px; border-radius: 12px;
+      font-weight: 700; font-size: 16px;
+      transition: transform 0.2s;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+    }
+    .action-btn:active { transform: scale(0.98); }
+    .action-btn svg { width: 20px; height: 20px; fill: white; }
+
+    /* Sección de Notas */
+    .notes-section { margin-top: 24px; }
+    .section-title { font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; }
+    .notes-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #334155;
+      white-space: pre-wrap; /* Mantiene los saltos de línea */
+    }
+
+    /* Vista Doctor */
+    .doctor-banner { background: var(--brand); color: white; padding: 8px; text-align: center; font-weight: 700; font-size: 12px; }
+    .private-data { border-top: 2px dashed #cbd5e1; margin-top: 24px; padding-top: 24px; }
+
+    /* UI Elements */
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .link-back { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 4px;}
+    .btn-ghost { background: white; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--ink);}
+    
+    /* Login Modal (Simplificado visualmente) */
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+    .modal-card { background: white; padding: 24px; border-radius: 16px; width: 100%; max-width: 350px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
+    .modal input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; }
+    .modal button { width: 100%; padding: 12px; background: var(--brand); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 16px; cursor: pointer; }
+    
+    .hide { display: none !important; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <div class="card" id="mainCard">
-    <h2 style="text-align:center; color: var(--muted);">Cargando...</h2>
+  <div class="topbar">
+    <a href="index.html" class="link-back">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Inicio
+    </a>
+    <div id="authActions">
+      <button id="btnLogin" class="btn-ghost">Soy Doctor</button>
+      <button id="btnLogout" class="btn-ghost hide" style="color: var(--danger); border-color: var(--danger);">Salir</button>
+    </div>
+  </div>
+
+  <div id="loading" style="text-align: center; padding: 40px; color: var(--muted);">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+    <p style="margin-top:10px; font-weight:500;">Buscando huellitas...</p>
+  </div>
+
+  <div class="card hide" id="mainCard">
+    </div>
+</div>
+
+<div id="doctorLogin" class="modal hide">
+  <div class="modal-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h2 style="margin:0; font-size:20px;">Acceso Doctor</h2>
+      <button onclick="document.getElementById('doctorLogin').classList.add('hide')" style="width:auto; background:none; color:#999; padding:0;">✕</button>
+    </div>
+    <input id="docEmail" type="email" placeholder="correo@doctores.local">
+    <input id="docPwd" type="password" placeholder="Contraseña">
+    <button id="btnSubmitLogin">Entrar al Sistema</button>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 <script>
+  // --- CONFIGURACIÓN ---
   const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-  window.onload = async function() {
-    if (!window.supabase) {
-      document.getElementById('mainCard').innerHTML = "<p>Error al cargar la librería.</p>";
-      return;
-    }
+  // --- UI ELEMENTS ---
+  const loading = document.getElementById('loading');
+  const mainCard = document.getElementById('mainCard');
+  const doctorLogin = document.getElementById('doctorLogin');
+  const btnLogin = document.getElementById('btnLogin');
+  const btnLogout = document.getElementById('btnLogout');
 
-    try {
-      const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
+  let petId = null;
+  let supa = null;
 
-      if (!id) {
-        document.getElementById('mainCard').innerHTML = "<h1>⚠️ Enlace incompleto</h1><p>Falta el ID de la mascota.</p>";
-        return;
-      }
-
-      // Intentar leer la VISTA PÚBLICA
-      const { data, error } = await supa
-        .from('mascotas_perfil_publico')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!data) {
-        checkDoctorAccess(supa, id);
-        return;
-      }
-
-      renderProfile(data);
-
-    } catch (e) {
-      document.getElementById('mainCard').innerHTML = `<h1>Error</h1><p>No se pudo cargar el perfil.</p>`;
-      console.error(e);
-    }
-  };
-
-  async function checkDoctorAccess(supa, id) {
-    const { data: { session } } = await supa.auth.getSession();
-    if (!session) {
-      document.getElementById('mainCard').innerHTML = "<h1>No encontrado</h1><p>Este perfil no está disponible públicamente.</p><button class='btn' onclick='location.href=\"programador.html\"'>Acceso Doctor</button>";
-      return;
-    }
-
-    // Intento leer tabla privada
-    const { data, error } = await supa.from('mascotas').select('*').eq('id', id).single();
-    if (data) {
-      renderProfile(data, true);
-    } else {
-      document.getElementById('mainCard').innerHTML = "<h1>404</h1><p>Mascota no encontrada.</p>";
-    }
-  }
-
+  // --- RENDERIZADO MEJORADO ---
   function renderProfile(pet, isDoctor = false) {
-    const foto = pet.foto_url || "https://via.placeholder.com/300?text=Sin+Foto";
-    const title = isDoctor ? `(Vista Doctor) ${pet.nombre}` : pet.nombre;
+    const foto = pet.foto_url || "https://via.placeholder.com/500x500?text=Sin+Foto";
     
+    // Formatear teléfono para el link de WhatsApp (quitar espacios y guiones)
+    const rawPhone = (pet.telefono || '').replace(/[^0-9]/g, '');
+    const whatsappLink = rawPhone ? `https://wa.me/${rawPhone}` : '#';
+    const callLink = rawPhone ? `tel:${rawPhone}` : '#';
+
     const html = `
-      <h1>${title}</h1>
-      <img src="${foto}" class="profile">
-      <div class="row"><span class="label">Raza:</span> <span>${pet.raza || '-'}</span></div>
-      <div class="row"><span class="label">Sexo:</span> <span>${pet.sexo || '-'}</span></div>
+      ${isDoctor ? '<div class="doctor-banner">VISTA PRIVADA DE DOCTOR</div>' : ''}
       
-      <div style="background:#fff3cd; padding:10px; border-radius:8px; margin-top:15px;">
-        <div class="label">⚠️ En caso de extravío:</div>
-        <div style="font-size:1.2em; font-weight:bold;">${pet.duenio || 'No registrado'}</div>
-        <div style="font-size:1.2em; color:var(--brand);">${pet.telefono || 'Sin teléfono'}</div>
+      <div class="header-img-container">
+        <img src="${foto}" class="profile" alt="Foto de ${pet.nombre}">
       </div>
 
-      <div style="margin-top:15px;">
-        <div class="label">Notas Públicas:</div>
-        <p>${pet.notas_publicas || 'Sin notas adicionales.'}</p>
+      <div class="content">
+        <h1>${pet.nombre}</h1>
+        
+        <div class="badges">
+          <span class="badge">${pet.raza || 'Raza desconocida'}</span>
+          <span class="badge">${pet.sexo || 'Sexo desconocido'}</span>
+          ${isDoctor ? `<span class="badge" style="background:#e0e7ff; color:#4338ca;">ID: ${pet.id}</span>` : ''}
+        </div>
+
+        <div class="contact-card">
+          <span class="contact-label">⚠️ En caso de extravío contactar a:</span>
+          <div class="owner-name">${pet.duenio || 'Información no disponible'}</div>
+          
+          ${pet.telefono ? `
+            <a href="${callLink}" class="action-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              Llamar al Dueño
+            </a>
+            <a href="${whatsappLink}" target="_blank" style="display:block; text-align:center; margin-top:12px; color:#b45309; text-decoration:none; font-weight:600; font-size:14px;">
+              o enviar WhatsApp
+            </a>
+          ` : '<div style="color:#b45309; font-weight:600;">Sin teléfono registrado</div>'}
+        </div>
+
+        <div class="notes-section">
+          <div class="section-title">Información Pública & Vacunas</div>
+          <div class="notes-box">
+            ${pet.notas_publicas ? pet.notas_publicas : 'No hay notas públicas registradas para esta mascota.'}
+          </div>
+        </div>
+
+        ${isDoctor ? `
+          <div class="private-data">
+            <div class="section-title" style="color:var(--brand);">🔒 Historial Médico Privado</div>
+            <div class="notes-box" style="border-color:var(--brand);">
+              <div><strong>Email Dueño:</strong> ${pet.email || '-'}</div>
+              <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+              ${pet.historial || 'Sin historial registrado.'}
+            </div>
+          </div>
+        ` : ''}
       </div>
-      
-      ${isDoctor ? `<div style="margin-top:15px; border-top:2px dashed #ccc; padding-top:10px;">
-        <div class="label">HISTORIAL PRIVADO:</div>
-        <p>${pet.historial || '-'}</p>
-      </div>` : ''}
     `;
-    document.getElementById('mainCard').innerHTML = html;
+
+    mainCard.innerHTML = html;
+    loading.classList.add('hide');
+    mainCard.classList.remove('hide');
   }
+
+  // --- LÓGICA ---
+  window.onload = async function() {
+    if (!window.supabase) return alert("Error de conexión");
+
+    const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const params = new URLSearchParams(window.location.search);
+    petId = params.get('id');
+
+    if (!petId) {
+      loading.innerHTML = "<h3>⚠️ Enlace inválido</h3>";
+      return;
+    }
+
+    // Lógica de carga
+    const load = async (session) => {
+      const isDoctor = session && (session.user.email.toLowerCase().endsWith('@doctores.local') || session.user.email.toLowerCase().endsWith('@local.com'));
+      
+      btnLogin.classList.toggle('hide', isDoctor);
+      btnLogout.classList.toggle('hide', !isDoctor);
+
+      if (isDoctor) {
+        // Doctor: Tabla privada
+        const { data } = await supa.from('mascotas').select('*').eq('id', petId).single();
+        if (data) renderProfile(data, true);
+      } else {
+        // Público: Vista pública
+        const { data } = await supa.from('mascotas_perfil_publico').select('*').eq('id', petId).single();
+        if (data) renderProfile(data, false);
+        else document.getElementById('mainCard').innerHTML = "<div class='content'><h3>Mascota no encontrada</h3></div>";
+      }
+    };
+
+    // Auth Listeners
+    btnLogin.onclick = () => doctorLogin.classList.remove('hide');
+    btnLogout.onclick = async () => { await supa.auth.signOut(); location.reload(); };
+    
+    document.getElementById('btnSubmitLogin').onclick = async () => {
+      const email = document.getElementById('docEmail').value;
+      const pwd = document.getElementById('docPwd').value;
+      const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
+      if (error) alert(error.message);
+      else {
+        doctorLogin.classList.add('hide');
+        location.reload(); // Recargar para aplicar permisos
+      }
+    };
+
+    // Iniciar
+    const { data: { session } } = await supa.auth.getSession();
+    await load(session);
+  };
+  
+  // Animación para el loader
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = `@keyframes spin { 100% { transform: rotate(360deg); } }`;
+  document.head.appendChild(styleSheet);
 </script>
 </body>
 </html>
