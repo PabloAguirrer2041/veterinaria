@@ -1,7 +1,7 @@
-// programador.js (VERSIÓN AUTÓNOMA - NO USA MAIN.JS)
+// programador.js (VERSIÓN FINAL - URL DIRECTA)
 
 // =========================================================
-// INICIO: Lógica de Supabase (reemplaza a main.js)
+// INICIO: Lógica de Supabase (Integrada)
 // =========================================================
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
@@ -16,17 +16,15 @@ async function getSupa(){
   if (supaPromise) return supaPromise;
 
   supaPromise = (async () => {
-    // 1. Esperar a que supabase.min.js cargue
+    // 1. Esperar a que supabase.min.js cargue desde el HTML
     while (!window.supabase) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
 
-    // 2. Crear el cliente
     supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     });
 
-    // 3. Configurar el listener (¡EL CORRECTO, SIN BUCLE!)
     if (!authBound){
       supa.auth.onAuthStateChange((event, session)=>{
         const user = session?.user || null;
@@ -35,35 +33,29 @@ async function getSupa(){
       authBound = true;
     }
     
-    // 4. Emitir el estado inicial para 'onSession'
     const { data:{ session } } = await supa.auth.getSession();
     const user = session?.user || null;
     for (const cb of [...listeners]) try{ cb(user); }catch{}
 
     return supa;
   })();
-  
   return supaPromise;
 }
 
 function onSession(cb){
   listeners.add(cb);
-  // Si Supa ya está listo, emite el estado actual inmediatamente
   if (supa) {
       supa.auth.getSession().then(({ data: { session } }) => {
           cb(session?.user || null);
-      }).catch(err => console.error("Error getting session in onSession:", err));
+      }).catch(err => console.error(err));
   }
   return ()=>listeners.delete(cb);
 }
-
 
 function ready(fn){
   if (document.readyState !== "loading") fn();
   else document.addEventListener("DOMContentLoaded", fn, { once:true });
 }
-// =========================================================
-// FIN: Lógica de Supabase
 // =========================================================
 
 
@@ -84,12 +76,22 @@ function setOnline(on){
   $("#btnSave").disabled   = !on;
   $("#btnUpdate").disabled = !on || !current;
   $("#btnDelete").disabled = !on || !current;
-  // Solo deshabilita si está online Y NO HAY sesión (estado inicial antes de cargar)
   const disableAuthFields = on && user; 
   $("#docId").disabled = disableAuthFields;
   $("#docPwd").disabled = disableAuthFields;
 }
 function logMsg(m){ const el=$("#log"); el.classList.remove("hide"); el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; }
+
+// --- FUNCIÓN QUE GENERA EL LINK (MODIFICADA) ---
+function showLink(id) {
+  // Crea la URL completa (ej: https://tudominio.com/perfil.html?id=123)
+  const fullUrl = window.location.origin + `/perfil.html?id=${id}`;
+  
+  $("#newLink").innerHTML = `
+    <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">Link directo para QR (Copia esto):</label>
+    <input type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold;">
+  `;
+}
 
 function fillForm(p){
   $("#f_nombre").value = p?.nombre || "";
@@ -103,8 +105,7 @@ function fillForm(p){
   $("#f_notas_publicas").value = p?.notas_publicas || "";
 
   if (p?.id) {
-    const link = `perfil.html?id=${p.id}`;
-    $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
+    showLink(p.id); // Llamamos a la nueva función
   } else {
     $("#newLink").innerHTML = "";
   }
@@ -120,7 +121,7 @@ async function doLogin(){
     if (!email || !pwd) return alert("Escribe Correo y contraseña");
     
     const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
-    if (error) return alert(`Error al iniciar sesión: ${error.message}`);
+    if (error) return alert(`Error: ${error.message}`);
     $("#docPwd").value = "";
   }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
 }
@@ -163,7 +164,7 @@ async function saveNew(){
     historial:$("#f_hist").value.trim(),
     notas_publicas: $("#f_notas_publicas").value.trim(),
     foto_url,
-    owner_id: user.id // Asegúrate que 'user' se actualiza correctamente en onSession
+    owner_id: user.id
   };
   if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
@@ -175,8 +176,7 @@ async function saveNew(){
     $("#btnUpdate").disabled=false; 
     $("#btnDelete").disabled=false;
     
-    const link = `perfil.html?id=${data.id}`;
-    $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
+    showLink(data.id); // Muestra el link al guardar
     window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
   }
   $("#btnSave").disabled = false;
@@ -208,8 +208,7 @@ async function updateCurrent(){
   if(error){ logMsg("✖ Update: " + error.message); }
   else { 
     logMsg("✅ Actualizado ID " + current.id); 
-    const link = `perfil.html?id=${current.id}`;
-    $("#newLink").innerHTML = `🔗 Link del perfil público (para QR): <a href="${link}" target="_blank">${link}</a>`;
+    showLink(current.id); // Muestra el link al actualizar
   }
   $("#btnUpdate").disabled = false;
 }
@@ -269,21 +268,14 @@ async function search(){
   });
 }
 
-/* --------- Arranque --------- */
 ready(async ()=>{
-  // Primero, nos aseguramos de que Supabase esté listo
   try { 
-    console.log("programador.js: Initializing Supabase...");
     await getSupa(); 
-    console.log("programador.js: Supabase client ready.");
   } catch(e){ 
-    console.error("programador.js: CRITICAL - Failed to initialize Supabase", e); 
-    alert("Error crítico: No se pudo cargar Supabase. Revisa la consola.");
-    setOnline(false); // Marcar como offline si falla
+    console.error(e);
     return;
   }
   
-  // Ahora configuramos los listeners
   $("#btnLogin").addEventListener("click", doLogin);
   $("#btnLogout").addEventListener("click", doLogout);
   $("#btnSearch").addEventListener("click", search);
@@ -293,10 +285,8 @@ ready(async ()=>{
   $("#btnDelete").addEventListener("click", deleteCurrent);
   $("#y").textContent = new Date().getFullYear();
 
-  // Y nos suscribimos a los cambios de sesión
   onSession(u=>{
-    console.log("programador.js: onSession triggered. User:", u ? u.email : 'null');
-    user = u; // Actualizar la variable global 'user'
+    user = u;
     const sEl = $("#sessionState");
     if (user){
       sEl.textContent = "Sesión: " + (user.email || user.id);
@@ -307,7 +297,7 @@ ready(async ()=>{
       sEl.textContent = "Sesión: desconectado";
       $("#btnLogin").classList.remove("hide");
       $("#btnLogout").classList.add("hide");
-      setOnline(false); // Asegura que esté offline si no hay usuario
+      setOnline(false);
     }
   });
 });

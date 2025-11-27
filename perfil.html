@@ -15,105 +15,73 @@
     .row{display:flex;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:8px;}
     .label{font-weight:600;color:var(--muted);}
     .btn{background:var(--brand);color:#fff;border:none;padding:10px 15px;border-radius:8px;font-weight:bold;cursor:pointer;width:100%;margin-top:10px;}
-    #debugLog{margin-top:20px;padding:10px;background:#000;color:#0f0;font-family:monospace;font-size:12px;border-radius:8px;white-space:pre-wrap;}
+    .hide{display:none;}
   </style>
 </head>
 <body>
 
 <div class="container">
   <div class="card" id="mainCard">
-    <h2 style="text-align:center; color: var(--muted);">Cargando sistema...</h2>
+    <h2 style="text-align:center; color: var(--muted);">Cargando...</h2>
   </div>
-  
-  <div id="debugLog">Iniciando diagnóstico...</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 <script>
-  // --- CONFIGURACIÓN ---
   const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-  // --- LOGGING EN PANTALLA ---
-  const logBox = document.getElementById('debugLog');
-  function log(msg) {
-    console.log(msg);
-    logBox.textContent += "\n> " + msg;
-  }
-
-  // --- INICIO ---
   window.onload = async function() {
-    log("Ventana cargada.");
-
     if (!window.supabase) {
-      log("ERROR CRÍTICO: La librería de Supabase no cargó desde el CDN.");
+      document.getElementById('mainCard').innerHTML = "<p>Error al cargar la librería.</p>";
       return;
     }
-    log("Librería Supabase detectada.");
 
     try {
-      // 1. Iniciar Cliente
       const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      log("Cliente Supabase creado.");
-
-      // 2. Obtener ID de la URL
       const params = new URLSearchParams(window.location.search);
       const id = params.get('id');
-      log("ID buscado: " + id);
 
       if (!id) {
-        document.getElementById('mainCard').innerHTML = "<h1>⚠️ Falta ID</h1><p>El enlace está incompleto.</p>";
+        document.getElementById('mainCard').innerHTML = "<h1>⚠️ Enlace incompleto</h1><p>Falta el ID de la mascota.</p>";
         return;
       }
 
-      // 3. Intentar leer la VISTA PÚBLICA primero (sin auth)
-      log("Consultando base de datos (Vista Pública)...");
-      
-      // NOTA: Usamos 'maybeSingle' para que no lance error si no encuentra nada, solo devuelva null
+      // Intentar leer la VISTA PÚBLICA
       const { data, error } = await supa
         .from('mascotas_perfil_publico')
         .select('*')
         .eq('id', id)
         .maybeSingle();
 
-      if (error) {
-        log("ERROR SQL: " + error.message);
-        throw error;
-      }
+      if (error) throw error;
 
       if (!data) {
-        log("No se encontraron datos. Verificando si eres doctor...");
-        // Si no está en la pública, intentamos verificar sesión
         checkDoctorAccess(supa, id);
         return;
       }
 
-      log("¡Datos recibidos! Renderizando...");
       renderProfile(data);
 
     } catch (e) {
-      log("EXCEPCIÓN: " + e.message);
-      document.getElementById('mainCard').innerHTML = `<h1>Error</h1><p>${e.message}</p>`;
+      document.getElementById('mainCard').innerHTML = `<h1>Error</h1><p>No se pudo cargar el perfil.</p>`;
+      console.error(e);
     }
   };
 
   async function checkDoctorAccess(supa, id) {
     const { data: { session } } = await supa.auth.getSession();
     if (!session) {
-      log("No hay sesión activa y no es público.");
-      document.getElementById('mainCard').innerHTML = "<h1>No encontrado</h1><p>Este perfil no es público.</p><button class='btn' onclick='location.href=\"programador.html\"'>Ir al Login de Doctor</button>";
+      document.getElementById('mainCard').innerHTML = "<h1>No encontrado</h1><p>Este perfil no está disponible públicamente.</p><button class='btn' onclick='location.href=\"programador.html\"'>Acceso Doctor</button>";
       return;
     }
 
-    log("Sesión detectada: " + session.user.email);
     // Intento leer tabla privada
     const { data, error } = await supa.from('mascotas').select('*').eq('id', id).single();
-    
     if (data) {
       renderProfile(data, true);
     } else {
-      log("Tampoco se encontró en tabla privada.");
       document.getElementById('mainCard').innerHTML = "<h1>404</h1><p>Mascota no encontrada.</p>";
     }
   }
