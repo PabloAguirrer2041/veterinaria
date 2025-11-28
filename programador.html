@@ -40,7 +40,7 @@
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef4ff;color:#305fbd;font-weight:600;font-size:12px}
     #log{margin-top:12px;white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1220;color:#e6edf3;border-radius:12px;padding:10px;max-height:220px;overflow:auto}
     footer{padding:22px 0;color:#6b7280;text-align:center}
-    .hide{display:none}
+    .hide{display:none !important;} /* Force hide */
     .login{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .login input{width:auto}
   </style>
@@ -51,9 +51,11 @@
       <a class="link" href="index.html">← Volver al menú</a>
       <div class="login" id="loginBox">
         <span id="sessionState" class="muted">Sesión: desconectado</span>
-        <input id="docId"  name="username" type="text" placeholder="Correo del doctor" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input id="docPwd" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
-        <button id="btnLogin"  type="button" class="btn">Iniciar sesión</button>
+        
+        <input id="docId" class="auth-field" name="username" type="text" placeholder="Correo del doctor" autocomplete="username">
+        <input id="docPwd" class="auth-field" name="password" type="password" placeholder="Contraseña">
+        
+        <button id="btnLogin" type="button" class="btn auth-field">Iniciar sesión</button>
         <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
       </div>
     </div>
@@ -90,7 +92,7 @@
           <input type="checkbox" id="f_contacto_publico" style="width:20px; height:20px; cursor:pointer;">
           <div>
             <label for="f_contacto_publico" style="font-weight:700; color:#166534; font-size:14px; cursor:pointer;">Mostrar información de contacto públicamente</label>
-            <div style="font-size:12px; color:#15803d;">Si se desactiva, el perfil público dirá "Llévenme al refugio" y ocultará el nombre/teléfono.</div>
+            <div style="font-size:12px; color:#15803d;">Si se desactiva, el perfil público ocultará el nombre y teléfono del dueño.</div>
           </div>
         </div>
 
