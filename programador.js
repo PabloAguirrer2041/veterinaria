@@ -1,4 +1,4 @@
-// programador.js (VERSIÓN BLINDADA A PRUEBA DE ERRORES)
+// programador.js (VERSIÓN FINAL Y COMPLETA)
 
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
@@ -8,18 +8,23 @@ const listeners = new Set();
 let authBound = false;
 let supaPromise = null;
 
-// --- 1. CONEXIÓN ROBUSTA ---
+// --- 1. CONEXIÓN ROBUSTA A SUPABASE ---
 async function getSupa(){
   if (supa) return supa;
   if (supaPromise) return supaPromise;
 
   supaPromise = (async () => {
+    // Esperar a que la librería cargue desde el HTML
     while (!window.supabase) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
+    
+    // Crear cliente
     supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     });
+
+    // Configurar listener de sesión
     if (!authBound){
       supa.auth.onAuthStateChange((event, session)=>{
         const user = session?.user || null;
@@ -27,11 +32,15 @@ async function getSupa(){
       });
       authBound = true;
     }
+    
+    // Emitir estado inicial
     const { data:{ session } } = await supa.auth.getSession();
     const user = session?.user || null;
     for (const cb of [...listeners]) try{ cb(user); }catch{}
+
     return supa;
   })();
+  
   return supaPromise;
 }
 
@@ -50,30 +59,25 @@ function ready(fn){
   else document.addEventListener("DOMContentLoaded", fn, { once:true });
 }
 
-// --- 2. LÓGICA UI ---
+// --- 2. LÓGICA DE INTERFAZ (UI) ---
 const $ = (s)=>document.querySelector(s);
 const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
 
 let user = null;
 let current = null;
 
-// CORRECCIÓN: Oculta elementos por ID directo (funciona con HTML viejo y nuevo)
+// Oculta/Muestra inputs de login según el estado
 function updateAuthUI(isLoggedIn) {
-  // Lista de IDs que queremos ocultar al iniciar sesión
-  const idsToHide = ['#docId', '#docPwd', '#btnLogin'];
+  // Selectores de los elementos a ocultar/mostrar
+  const authFields = document.querySelectorAll('.auth-field');
   const logoutBtn = $("#btnLogout");
   
-  idsToHide.forEach(selector => {
-    const el = $(selector);
-    if(el) {
-      if (isLoggedIn) el.classList.add('hide');
-      else el.classList.remove('hide');
-    }
-  });
-
-  if(logoutBtn) {
-    if (isLoggedIn) logoutBtn.classList.remove('hide');
-    else logoutBtn.classList.add('hide');
+  if (isLoggedIn) {
+    authFields.forEach(el => el.classList.add('hide'));
+    if(logoutBtn) logoutBtn.classList.remove('hide');
+  } else {
+    authFields.forEach(el => el.classList.remove('hide'));
+    if(logoutBtn) logoutBtn.classList.add('hide');
   }
 }
 
@@ -97,15 +101,18 @@ function logMsg(m){
   }
 }
 
+// Genera el link y muestra controles IoT
 function showLink(id) {
   const fullUrl = window.location.origin + `/perfil.html?id=${id}`;
   const linkContainer = $("#newLink");
+  
   if(linkContainer) {
     linkContainer.innerHTML = `
       <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">URL del Perfil Público (Copiar):</label>
       <input id="currentUrlInput" type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
     `;
   }
+  
   const iotControls = $("#iotControls");
   if(iotControls) iotControls.classList.remove("hide");
 }
@@ -133,37 +140,30 @@ function fillForm(p){
 
 /* --------- Autenticación --------- */
 async function doLogin(){
-  console.log("Intentando iniciar sesión..."); // Debug en consola
   try{
     const supa = await getSupa();
     const emailEl = $("#docId");
     const pwdEl = $("#docPwd");
     
-    if(!emailEl || !pwdEl) return alert("Error: No encuentro los campos de texto.");
+    if(!emailEl || !pwdEl) return; // Si no existen los campos, salir
 
     const email = emailEl.value.trim();
     const pwd = pwdEl.value.trim();
     
     if (!email || !pwd) return alert("Escribe Correo y contraseña");
     
-    const { data, error } = await supa.auth.signInWithPassword({ email, password: pwd });
+    const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
+    if (error) return alert(`Error: ${error.message}`);
     
-    if (error) {
-      console.error("Login falló:", error);
-      return alert(`Error: ${error.message}`);
-    }
-    
-    console.log("Login exitoso:", data);
     pwdEl.value = "";
-    // No necesitamos llamar a updateUI aquí, onSession lo hará automáticamente
-  }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión (Revisa consola)."); }
+  }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
 }
 
 async function doLogout(){
   try{
     const supa = await getSupa();
     await supa.auth.signOut();
-    location.reload(); // Recargar para limpiar todo
+    location.reload(); 
   }catch(e){ console.warn("[logout]", e); }
 }
 
@@ -309,7 +309,7 @@ async function search(){
   });
 }
 
-// IOT Heartbeat Monitor
+// --- IOT HEARTBEAT MONITOR ---
 let espTimer = null;
 function updateEspStatus(online) {
   const el = $("#espStatus");
@@ -335,20 +335,29 @@ function updateEspStatus(online) {
 
 async function initEspMonitor() {
   const supa = await getSupa();
+  
+  // Usamos POLLING (consulta activa) para mayor estabilidad
   const checkHeartbeat = async () => {
     try {
       const { data } = await supa.from('status_esp32').select('updated_at').eq('id', 1).single();
       if (data) {
         const lastSeen = new Date(data.updated_at).getTime();
-        if (new Date().getTime() - lastSeen < 15000) updateEspStatus(true);
+        const now = new Date().getTime();
+        // Si el latido fue hace menos de 15 segundos, está online
+        if (now - lastSeen < 15000) updateEspStatus(true);
         else updateEspStatus(false);
       }
-    } catch (err) {}
+    } catch (err) {
+      // Ignorar errores de red temporales
+    }
   };
+
+  // Chequeo inicial y luego cada 5 segundos
   checkHeartbeat();
   setInterval(checkHeartbeat, 5000);
 }
 
+// --- FUNCIÓN ENVIAR A ESP32 ---
 async function sendToDevice() {
   const urlInput = $("#currentUrlInput");
   if (!urlInput || !urlInput.value) return alert("No hay una URL generada para enviar.");
@@ -388,21 +397,17 @@ ready(async ()=>{
     return;
   }
   
-  // CORRECCIÓN CRÍTICA: Detectar qué tipo de login tenemos (HTML viejo vs nuevo)
+  // Listeners de Login
   const loginForm = $("#loginForm");
   if (loginForm) {
-    // Si tenemos el HTML NUEVO (con <form>), usamos 'submit' para que funcione Enter
     loginForm.addEventListener("submit", (e) => {
-      e.preventDefault(); // Evitar recarga
+      e.preventDefault(); 
       doLogin();
     });
   } else {
-    // Si tenemos el HTML VIEJO (solo div), usamos 'click' en el botón como respaldo
+    // Fallback para botón sin formulario
     const btnLogin = $("#btnLogin");
-    if(btnLogin) btnLogin.addEventListener("click", (e) => {
-      e.preventDefault();
-      doLogin();
-    });
+    if(btnLogin) btnLogin.addEventListener("click", doLogin);
   }
 
   // Resto de listeners
@@ -414,7 +419,7 @@ ready(async ()=>{
   if($("#btnUpdate")) $("#btnUpdate").addEventListener("click", updateCurrent);
   if($("#btnDelete")) $("#btnDelete").addEventListener("click", deleteCurrent);
   
-  // Listener IOT Delegado (funciona aunque el botón esté oculto al inicio)
+  // Listener IOT (Delegado al body para que funcione aunque el botón no exista al inicio)
   document.body.addEventListener('click', (e) => {
     if(e.target && e.target.id == 'btnSendToEsp') sendToDevice();
   });
@@ -423,6 +428,7 @@ ready(async ()=>{
 
   initEspMonitor();
 
+  // Monitor de Sesión
   onSession(u=>{
     user = u;
     const sEl = $("#sessionState");
@@ -437,3 +443,5 @@ ready(async ()=>{
     }
   });
 });
+
+// FIN DEL ARCHIVO
