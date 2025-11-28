@@ -1,8 +1,5 @@
-// programador.js (VERSIÓN MAESTRA FINAL)
+// programador.js (VERSIÓN FINAL + FORM FIX)
 
-// =========================================================
-// 1. CONFIGURACIÓN E INICIALIZACIÓN DE SUPABASE
-// =========================================================
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
@@ -11,21 +8,17 @@ const listeners = new Set();
 let authBound = false;
 let supaPromise = null;
 
-// Función Singleton para obtener el cliente
 async function getSupa(){
   if (supa) return supa;
   if (supaPromise) return supaPromise;
 
   supaPromise = (async () => {
-    // Esperar a que la librería cargue desde el CDN
     while (!window.supabase) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-
     supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     });
-
     if (!authBound){
       supa.auth.onAuthStateChange((event, session)=>{
         const user = session?.user || null;
@@ -33,11 +26,9 @@ async function getSupa(){
       });
       authBound = true;
     }
-    
     const { data:{ session } } = await supa.auth.getSession();
     const user = session?.user || null;
     for (const cb of [...listeners]) try{ cb(user); }catch{}
-
     return supa;
   })();
   return supaPromise;
@@ -58,17 +49,13 @@ function ready(fn){
   else document.addEventListener("DOMContentLoaded", fn, { once:true });
 }
 
-// =========================================================
-// 2. LÓGICA DE INTERFAZ (UI)
-// =========================================================
-
+// --- LOGIC ---
 const $ = (s)=>document.querySelector(s);
 const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
 
 let user = null;
 let current = null;
 
-// Oculta/Muestra inputs de login según el estado
 function updateAuthUI(isLoggedIn) {
   const authFields = document.querySelectorAll('.auth-field');
   const logoutBtn = $("#btnLogout");
@@ -95,16 +82,12 @@ function logMsg(m){
   el.scrollTop = el.scrollHeight; 
 }
 
-// Muestra el Link y habilita el botón de enviar a ESP32
 function showLink(id) {
   const fullUrl = window.location.origin + `/perfil.html?id=${id}`;
-  
   $("#newLink").innerHTML = `
     <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">URL del Perfil Público:</label>
     <input id="currentUrlInput" type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
   `;
-  
-  // Mostrar controles IOT si existen
   const iotControls = $("#iotControls");
   if(iotControls) iotControls.classList.remove("hide");
 }
@@ -130,7 +113,7 @@ function fillForm(p){
   }
 }
 
-/* --------- Autenticación --------- */
+/* --------- Auth --------- */
 async function doLogin(){
   try{
     const supa = await getSupa();
@@ -291,17 +274,13 @@ async function search(){
   });
 }
 
-// =========================================================
-// 3. LÓGICA DEL ESP32 (IOT & HEARTBEAT)
-// =========================================================
+// IOT Heartbeat Monitor
 let espTimer = null;
-
 function updateEspStatus(online) {
   const el = $("#espStatus");
   if(!el) return;
   const dot = el.querySelector("div");
   const text = el.querySelector("span");
-
   if (online) {
     el.style.background = "#dcfce7";
     el.style.color = "#15803d";
@@ -321,18 +300,14 @@ function updateEspStatus(online) {
 
 async function initEspMonitor() {
   const supa = await getSupa();
-  
-  // Escuchar Latidos
   supa.channel('public:status_esp32')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'status_esp32' }, (payload) => {
-      // Ignoramos si es un 'pending_write', solo nos interesa 'updated_at' para el latido
       updateEspStatus(true);
       clearTimeout(espTimer);
       espTimer = setTimeout(() => updateEspStatus(false), 15000); 
     })
     .subscribe();
 
-  // Chequeo inicial
   const { data } = await supa.from('status_esp32').select('updated_at').eq('id', 1).single();
   if (data) {
     const lastSeen = new Date(data.updated_at).getTime();
@@ -343,7 +318,6 @@ async function initEspMonitor() {
   }
 }
 
-// --- FUNCIÓN PARA ENVIAR LINK AL ESP32 ---
 async function sendToDevice() {
   const urlInput = $("#currentUrlInput");
   if (!urlInput || !urlInput.value) return alert("No hay una URL generada para enviar.");
@@ -359,13 +333,7 @@ async function sendToDevice() {
 
   try {
     const supa = await getSupa();
-    
-    // Subir la URL a la columna 'pending_write'
-    const { error } = await supa
-      .from('status_esp32')
-      .update({ pending_write: urlToSend })
-      .eq('id', 1);
-
+    const { error } = await supa.from('status_esp32').update({ pending_write: urlToSend }).eq('id', 1);
     if (error) throw error;
 
     statusMsg.textContent = "✅ ¡Enviado! Acerca la etiqueta al dispositivo ahora.";
@@ -376,7 +344,6 @@ async function sendToDevice() {
       btn.textContent = "Enviar código al Programador";
       statusMsg.textContent = "";
     }, 5000);
-
   } catch (e) {
     console.error(e);
     statusMsg.textContent = "❌ Error al enviar: " + e.message;
@@ -386,9 +353,6 @@ async function sendToDevice() {
   }
 }
 
-// =========================================================
-// 4. ARRANQUE
-// =========================================================
 ready(async ()=>{
   try { 
     await getSupa(); 
@@ -398,8 +362,12 @@ ready(async ()=>{
     return;
   }
   
-  // Listeners
-  $("#btnLogin").addEventListener("click", doLogin);
+  // CAMBIO: Ahora escuchamos el 'submit' del formulario para soportar Enter
+  $("#loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    doLogin();
+  });
+
   $("#btnLogout").addEventListener("click", doLogout);
   $("#btnSearch").addEventListener("click", search);
   $("#q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
@@ -407,12 +375,9 @@ ready(async ()=>{
   $("#btnUpdate").addEventListener("click", updateCurrent);
   $("#btnDelete").addEventListener("click", deleteCurrent);
   
-  // Listener del Botón IOT (¡Importante!)
-  // Usamos verificación opcional por si el elemento aún no se ha inyectado en el DOM
+  // Listener IOT (si existe el botón)
   document.body.addEventListener('click', (e) => {
-    if(e.target && e.target.id == 'btnSendToEsp'){
-        sendToDevice();
-    }
+    if(e.target && e.target.id == 'btnSendToEsp') sendToDevice();
   });
 
   $("#y").textContent = new Date().getFullYear();
