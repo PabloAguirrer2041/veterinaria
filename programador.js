@@ -382,19 +382,43 @@ ready(async ()=>{
 
   $("#y").textContent = new Date().getFullYear();
 
-  initEspMonitor();
+ // =========================================================
+// MONITOR DE LATIDOS (VERSIÓN ROBUSTA - POLLING)
+// =========================================================
+async function initEspMonitor() {
+  const supa = await getSupa();
 
-  onSession(u=>{
-    user = u;
-    const sEl = $("#sessionState");
-    if (user){
-      sEl.textContent = "Sesión: " + (user.email || user.id);
-      updateAuthUI(true);
-      setOnline(true);
-    } else {
-      sEl.textContent = "Sesión: desconectado";
-      updateAuthUI(false);
-      setOnline(false);
+  // Función que consulta la base de datos activamente
+  const checkHeartbeat = async () => {
+    try {
+      // Pedimos la última hora de conexión (sin caché)
+      const { data, error } = await supa
+        .from('status_esp32')
+        .select('updated_at')
+        .eq('id', 1)
+        .single();
+
+      if (data) {
+        const lastSeen = new Date(data.updated_at).getTime();
+        const now = new Date().getTime();
+        const diff = now - lastSeen;
+
+        // Si la última señal fue hace menos de 15 segundos (15000ms)
+        // Significa que el ESP32 está vivo y mandando señales.
+        if (diff < 15000) {
+          updateEspStatus(true); // VERDE
+        } else {
+          updateEspStatus(false); // ROJO
+        }
+      }
+    } catch (err) {
+      console.warn("Error revisando latido:", err);
     }
-  });
-});
+  };
+
+  // 1. Revisar inmediatamente al cargar
+  checkHeartbeat();
+
+  // 2. Revisar automáticamente cada 5 segundos
+  setInterval(checkHeartbeat, 5000);
+}
