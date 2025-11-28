@@ -1,4 +1,4 @@
-// programador.js (VERSIÓN FINAL + FORM FIX)
+// programador.js (VERSIÓN BLINDADA A PRUEBA DE ERRORES)
 
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
@@ -8,6 +8,7 @@ const listeners = new Set();
 let authBound = false;
 let supaPromise = null;
 
+// --- 1. CONEXIÓN ROBUSTA ---
 async function getSupa(){
   if (supa) return supa;
   if (supaPromise) return supaPromise;
@@ -49,90 +50,120 @@ function ready(fn){
   else document.addEventListener("DOMContentLoaded", fn, { once:true });
 }
 
-// --- LOGIC ---
+// --- 2. LÓGICA UI ---
 const $ = (s)=>document.querySelector(s);
 const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
 
 let user = null;
 let current = null;
 
+// CORRECCIÓN: Oculta elementos por ID directo (funciona con HTML viejo y nuevo)
 function updateAuthUI(isLoggedIn) {
-  const authFields = document.querySelectorAll('.auth-field');
+  // Lista de IDs que queremos ocultar al iniciar sesión
+  const idsToHide = ['#docId', '#docPwd', '#btnLogin'];
   const logoutBtn = $("#btnLogout");
   
-  if (isLoggedIn) {
-    authFields.forEach(el => el.classList.add('hide'));
-    logoutBtn.classList.remove('hide');
-  } else {
-    authFields.forEach(el => el.classList.remove('hide'));
-    logoutBtn.classList.add('hide');
+  idsToHide.forEach(selector => {
+    const el = $(selector);
+    if(el) {
+      if (isLoggedIn) el.classList.add('hide');
+      else el.classList.remove('hide');
+    }
+  });
+
+  if(logoutBtn) {
+    if (isLoggedIn) logoutBtn.classList.remove('hide');
+    else logoutBtn.classList.add('hide');
   }
 }
 
 function setOnline(on){
-  $("#btnSave").disabled   = !on;
-  $("#btnUpdate").disabled = !on || !current;
-  $("#btnDelete").disabled = !on || !current;
+  const btnSave = $("#btnSave");
+  if(btnSave) btnSave.disabled = !on;
+  
+  const btnUpdate = $("#btnUpdate");
+  if(btnUpdate) btnUpdate.disabled = !on || !current;
+  
+  const btnDelete = $("#btnDelete");
+  if(btnDelete) btnDelete.disabled = !on || !current;
 }
 
 function logMsg(m){ 
   const el=$("#log"); 
-  el.classList.remove("hide"); 
-  el.textContent += m + "\n"; 
-  el.scrollTop = el.scrollHeight; 
+  if(el) {
+    el.classList.remove("hide"); 
+    el.textContent += m + "\n"; 
+    el.scrollTop = el.scrollHeight; 
+  }
 }
 
 function showLink(id) {
   const fullUrl = window.location.origin + `/perfil.html?id=${id}`;
-  $("#newLink").innerHTML = `
-    <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">URL del Perfil Público:</label>
-    <input id="currentUrlInput" type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
-  `;
+  const linkContainer = $("#newLink");
+  if(linkContainer) {
+    linkContainer.innerHTML = `
+      <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">URL del Perfil Público (Copiar):</label>
+      <input id="currentUrlInput" type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
+    `;
+  }
   const iotControls = $("#iotControls");
   if(iotControls) iotControls.classList.remove("hide");
 }
 
 function fillForm(p){
-  $("#f_nombre").value = p?.nombre || "";
-  $("#f_raza").value   = p?.raza   || "";
-  $("#f_edad").value   = p?.edad   ?? "";
-  $("#f_sexo").value   = p?.sexo   || "";
-  $("#f_duenio").value = p?.duenio || "";
-  $("#f_tel").value    = p?.telefono || "";
-  $("#f_email").value  = p?.email || "";
-  $("#f_hist").value   = p?.historial || "";
-  $("#f_notas_publicas").value = p?.notas_publicas || "";
-  $("#f_contacto_publico").checked = !!p?.contacto_publico;
+  if($("#f_nombre")) $("#f_nombre").value = p?.nombre || "";
+  if($("#f_raza")) $("#f_raza").value   = p?.raza   || "";
+  if($("#f_edad")) $("#f_edad").value   = p?.edad   ?? "";
+  if($("#f_sexo")) $("#f_sexo").value   = p?.sexo   || "";
+  if($("#f_duenio")) $("#f_duenio").value = p?.duenio || "";
+  if($("#f_tel")) $("#f_tel").value    = p?.telefono || "";
+  if($("#f_email")) $("#f_email").value  = p?.email || "";
+  if($("#f_hist")) $("#f_hist").value   = p?.historial || "";
+  if($("#f_notas_publicas")) $("#f_notas_publicas").value = p?.notas_publicas || "";
+  if($("#f_contacto_publico")) $("#f_contacto_publico").checked = !!p?.contacto_publico;
 
   if (p?.id) {
     showLink(p.id);
   } else {
-    $("#newLink").innerHTML = "";
+    if($("#newLink")) $("#newLink").innerHTML = "";
     const iotControls = $("#iotControls");
     if(iotControls) iotControls.classList.add("hide");
   }
 }
 
-/* --------- Auth --------- */
+/* --------- Autenticación --------- */
 async function doLogin(){
+  console.log("Intentando iniciar sesión..."); // Debug en consola
   try{
     const supa = await getSupa();
-    const email = ($("#docId").value || "").trim();
-    const pwd = ($("#docPwd").value || "").trim();
+    const emailEl = $("#docId");
+    const pwdEl = $("#docPwd");
+    
+    if(!emailEl || !pwdEl) return alert("Error: No encuentro los campos de texto.");
+
+    const email = emailEl.value.trim();
+    const pwd = pwdEl.value.trim();
     
     if (!email || !pwd) return alert("Escribe Correo y contraseña");
     
-    const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
-    if (error) return alert(`Error: ${error.message}`);
+    const { data, error } = await supa.auth.signInWithPassword({ email, password: pwd });
     
-    $("#docPwd").value = "";
-  }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
+    if (error) {
+      console.error("Login falló:", error);
+      return alert(`Error: ${error.message}`);
+    }
+    
+    console.log("Login exitoso:", data);
+    pwdEl.value = "";
+    // No necesitamos llamar a updateUI aquí, onSession lo hará automáticamente
+  }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión (Revisa consola)."); }
 }
 
 async function doLogout(){
   try{
     const supa = await getSupa();
     await supa.auth.signOut();
+    location.reload(); // Recargar para limpiar todo
   }catch(e){ console.warn("[logout]", e); }
 }
 
@@ -154,7 +185,8 @@ async function saveNew(){
   const supa = await getSupa();
   $("#btnSave").disabled = true;
 
-  const file = $("#f_foto")?.files?.[0];
+  const fileInput = $("#f_foto");
+  const file = fileInput?.files?.[0];
   const foto_url = file ? await uploadPhoto(file) : null;
 
   const payload = {
@@ -193,7 +225,8 @@ async function updateCurrent(){
   $("#btnUpdate").disabled = true;
 
   let foto_url = current.foto_url || null;
-  const file = $("#f_foto")?.files?.[0];
+  const fileInput = $("#f_foto");
+  const file = fileInput?.files?.[0];
   if (file){ const up = await uploadPhoto(file); if(up) foto_url = up; }
 
   const payload = {
@@ -230,16 +263,18 @@ async function deleteCurrent(){
   current = null;
   $("#btnUpdate").disabled = true;
   $("#btnDelete").disabled = true;
-  $("#results").innerHTML = "";
+  if($("#results")) $("#results").innerHTML = "";
   fillForm({});
 }
 
 async function search(){
   const supa = await getSupa();
-  const q = $("#q").value.trim();
+  const qEl = $("#q");
+  const q = qEl ? qEl.value.trim() : "";
   const results = $("#results");
-  results.innerHTML = "";
-  if(!q){ results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
+  if(results) results.innerHTML = "";
+  
+  if(!q){ if(results) results.innerHTML = `<div class="muted">Escribe un nombre o ID.</div>`; return; }
 
   let query = supa
     .from("mascotas")
@@ -252,8 +287,8 @@ async function search(){
     : query.ilike("nombre", `%${q}%`);
 
   const { data, error } = await query;
-  if(error){ results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
-  if(!data?.length){ results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
+  if(error){ if(results) results.innerHTML = `<div class="muted">Error: ${error.message}</div>`; return; }
+  if(!data?.length){ if(results) results.innerHTML = `<div class="muted">Sin resultados.</div>`; return; }
 
   data.forEach(p=>{
     const card = document.createElement("div");
@@ -270,7 +305,7 @@ async function search(){
         <div class="muted">Dueño: ${p.duenio || "—"}</div>
       </div>`;
     card.onclick = ()=>{ current = p; fillForm(p); $("#btnUpdate").disabled=false; $("#btnDelete").disabled=false; window.scrollTo({top:0,behavior:'smooth'}); };
-    results.appendChild(card);
+    if(results) results.appendChild(card);
   });
 }
 
@@ -300,22 +335,18 @@ function updateEspStatus(online) {
 
 async function initEspMonitor() {
   const supa = await getSupa();
-  supa.channel('public:status_esp32')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'status_esp32' }, (payload) => {
-      updateEspStatus(true);
-      clearTimeout(espTimer);
-      espTimer = setTimeout(() => updateEspStatus(false), 15000); 
-    })
-    .subscribe();
-
-  const { data } = await supa.from('status_esp32').select('updated_at').eq('id', 1).single();
-  if (data) {
-    const lastSeen = new Date(data.updated_at).getTime();
-    if (new Date().getTime() - lastSeen < 15000) {
-      updateEspStatus(true);
-      espTimer = setTimeout(() => updateEspStatus(false), 15000);
-    }
-  }
+  const checkHeartbeat = async () => {
+    try {
+      const { data } = await supa.from('status_esp32').select('updated_at').eq('id', 1).single();
+      if (data) {
+        const lastSeen = new Date(data.updated_at).getTime();
+        if (new Date().getTime() - lastSeen < 15000) updateEspStatus(true);
+        else updateEspStatus(false);
+      }
+    } catch (err) {}
+  };
+  checkHeartbeat();
+  setInterval(checkHeartbeat, 5000);
 }
 
 async function sendToDevice() {
@@ -326,33 +357,28 @@ async function sendToDevice() {
   const statusMsg = $("#iotStatusMsg");
   const btn = $("#btnSendToEsp");
 
-  btn.disabled = true;
-  btn.textContent = "Enviando...";
-  statusMsg.style.display = "block";
-  statusMsg.textContent = "⏳ Enviando orden al dispositivo...";
+  if(btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
+  if(statusMsg) { statusMsg.style.display = "block"; statusMsg.textContent = "⏳ Enviando orden al dispositivo..."; }
 
   try {
     const supa = await getSupa();
     const { error } = await supa.from('status_esp32').update({ pending_write: urlToSend }).eq('id', 1);
     if (error) throw error;
 
-    statusMsg.textContent = "✅ ¡Enviado! Acerca la etiqueta al dispositivo ahora.";
-    statusMsg.style.color = "green";
+    if(statusMsg) { statusMsg.textContent = "✅ ¡Enviado! Acerca la etiqueta al dispositivo ahora."; statusMsg.style.color = "green"; }
     
     setTimeout(() => {
-      btn.disabled = false;
-      btn.textContent = "Enviar código al Programador";
-      statusMsg.textContent = "";
+      if(btn) { btn.disabled = false; btn.textContent = "Enviar código al Programador"; }
+      if(statusMsg) statusMsg.textContent = "";
     }, 5000);
   } catch (e) {
     console.error(e);
-    statusMsg.textContent = "❌ Error al enviar: " + e.message;
-    statusMsg.style.color = "red";
-    btn.disabled = false;
-    btn.textContent = "Reintentar";
+    if(statusMsg) { statusMsg.textContent = "❌ Error al enviar: " + e.message; statusMsg.style.color = "red"; }
+    if(btn) { btn.disabled = false; btn.textContent = "Reintentar"; }
   }
 }
 
+/* --------- ARRANQUE MAESTRO --------- */
 ready(async ()=>{
   try { 
     await getSupa(); 
@@ -362,63 +388,52 @@ ready(async ()=>{
     return;
   }
   
-  // CAMBIO: Ahora escuchamos el 'submit' del formulario para soportar Enter
-  $("#loginForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    doLogin();
-  });
+  // CORRECCIÓN CRÍTICA: Detectar qué tipo de login tenemos (HTML viejo vs nuevo)
+  const loginForm = $("#loginForm");
+  if (loginForm) {
+    // Si tenemos el HTML NUEVO (con <form>), usamos 'submit' para que funcione Enter
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault(); // Evitar recarga
+      doLogin();
+    });
+  } else {
+    // Si tenemos el HTML VIEJO (solo div), usamos 'click' en el botón como respaldo
+    const btnLogin = $("#btnLogin");
+    if(btnLogin) btnLogin.addEventListener("click", (e) => {
+      e.preventDefault();
+      doLogin();
+    });
+  }
 
-  $("#btnLogout").addEventListener("click", doLogout);
-  $("#btnSearch").addEventListener("click", search);
-  $("#q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
-  $("#btnSave").addEventListener("click", saveNew);
-  $("#btnUpdate").addEventListener("click", updateCurrent);
-  $("#btnDelete").addEventListener("click", deleteCurrent);
+  // Resto de listeners
+  if($("#btnLogout")) $("#btnLogout").addEventListener("click", doLogout);
+  if($("#btnSearch")) $("#btnSearch").addEventListener("click", search);
+  if($("#q")) $("#q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
   
-  // Listener IOT (si existe el botón)
+  if($("#btnSave")) $("#btnSave").addEventListener("click", saveNew);
+  if($("#btnUpdate")) $("#btnUpdate").addEventListener("click", updateCurrent);
+  if($("#btnDelete")) $("#btnDelete").addEventListener("click", deleteCurrent);
+  
+  // Listener IOT Delegado (funciona aunque el botón esté oculto al inicio)
   document.body.addEventListener('click', (e) => {
     if(e.target && e.target.id == 'btnSendToEsp') sendToDevice();
   });
 
-  $("#y").textContent = new Date().getFullYear();
+  if($("#y")) $("#y").textContent = new Date().getFullYear();
 
- // =========================================================
-// MONITOR DE LATIDOS (VERSIÓN ROBUSTA - POLLING)
-// =========================================================
-async function initEspMonitor() {
-  const supa = await getSupa();
+  initEspMonitor();
 
-  // Función que consulta la base de datos activamente
-  const checkHeartbeat = async () => {
-    try {
-      // Pedimos la última hora de conexión (sin caché)
-      const { data, error } = await supa
-        .from('status_esp32')
-        .select('updated_at')
-        .eq('id', 1)
-        .single();
-
-      if (data) {
-        const lastSeen = new Date(data.updated_at).getTime();
-        const now = new Date().getTime();
-        const diff = now - lastSeen;
-
-        // Si la última señal fue hace menos de 15 segundos (15000ms)
-        // Significa que el ESP32 está vivo y mandando señales.
-        if (diff < 15000) {
-          updateEspStatus(true); // VERDE
-        } else {
-          updateEspStatus(false); // ROJO
-        }
-      }
-    } catch (err) {
-      console.warn("Error revisando latido:", err);
+  onSession(u=>{
+    user = u;
+    const sEl = $("#sessionState");
+    if (user){
+      if(sEl) sEl.textContent = "Sesión: " + (user.email || user.id);
+      updateAuthUI(true);
+      setOnline(true);
+    } else {
+      if(sEl) sEl.textContent = "Sesión: desconectado";
+      updateAuthUI(false);
+      setOnline(false);
     }
-  };
-
-  // 1. Revisar inmediatamente al cargar
-  checkHeartbeat();
-
-  // 2. Revisar automáticamente cada 5 segundos
-  setInterval(checkHeartbeat, 5000);
-}
+  });
+});
