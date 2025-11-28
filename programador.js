@@ -358,32 +358,59 @@ async function initEspMonitor() {
 }
 
 // --- FUNCIÓN ENVIAR A ESP32 ---
+/* --------- IOT: ENVIAR A ESP32 (CON ACORTADOR) --------- */
 async function sendToDevice() {
   const urlInput = $("#currentUrlInput");
   if (!urlInput || !urlInput.value) return alert("No hay una URL generada para enviar.");
   
-  const urlToSend = urlInput.value;
+  const originalUrl = urlInput.value;
   const statusMsg = $("#iotStatusMsg");
   const btn = $("#btnSendToEsp");
 
-  if(btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
-  if(statusMsg) { statusMsg.style.display = "block"; statusMsg.textContent = "⏳ Enviando orden al dispositivo..."; }
+  btn.disabled = true;
+  btn.textContent = "Acortando link...";
+  statusMsg.style.display = "block";
+  statusMsg.textContent = "⏳ Generando link corto...";
 
   try {
+    // 1. ACORTAR LINK (Usando API pública de TinyURL)
+    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(originalUrl)}`);
+    if (!response.ok) throw new Error("No se pudo acortar el link");
+    const shortUrl = await response.text();
+    
+    console.log("Link original:", originalUrl);
+    console.log("Link corto:", shortUrl);
+
+    // 2. ENVIAR A SUPABASE (Ahora enviamos el corto)
+    btn.textContent = "Enviando al dispositivo...";
+    statusMsg.textContent = "⏳ Enviando orden al ESP32...";
+
     const supa = await getSupa();
-    const { error } = await supa.from('status_esp32').update({ pending_write: urlToSend }).eq('id', 1);
+    const { error } = await supa
+      .from('status_esp32')
+      .update({ pending_write: shortUrl }) // <--- Enviamos shortUrl
+      .eq('id', 1);
+
     if (error) throw error;
 
-    if(statusMsg) { statusMsg.textContent = "✅ ¡Enviado! Acerca la etiqueta al dispositivo ahora."; statusMsg.style.color = "green"; }
+    statusMsg.textContent = `✅ ¡Listo! Link corto generado: ${shortUrl}\nAcerca la etiqueta al dispositivo ahora.`;
+    statusMsg.style.color = "green";
+    
+    // Actualizar el input visual también para que el doctor vea el link corto
+    urlInput.value = shortUrl;
     
     setTimeout(() => {
-      if(btn) { btn.disabled = false; btn.textContent = "Enviar código al Programador"; }
-      if(statusMsg) statusMsg.textContent = "";
+      btn.disabled = false;
+      btn.textContent = "Enviar código al Programador";
+      // statusMsg.textContent = ""; // Dejar el mensaje un poco más para que vean el link
     }, 5000);
+
   } catch (e) {
     console.error(e);
-    if(statusMsg) { statusMsg.textContent = "❌ Error al enviar: " + e.message; statusMsg.style.color = "red"; }
-    if(btn) { btn.disabled = false; btn.textContent = "Reintentar"; }
+    statusMsg.textContent = "❌ Error: " + e.message;
+    statusMsg.style.color = "red";
+    btn.disabled = false;
+    btn.textContent = "Reintentar";
   }
 }
 
