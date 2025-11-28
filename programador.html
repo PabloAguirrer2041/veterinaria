@@ -50,11 +50,12 @@
     <div class="topbar">
       <a class="link" href="index.html">← Volver al menú</a>
       
-      <form class="login" id="loginForm">
+     <form class="login" id="loginForm">
         <span id="sessionState" class="muted">Sesión: desconectado</span>
         
         <input id="docId" class="auth-field" name="username" type="text" placeholder="Correo del doctor" autocomplete="username">
-        <input id="docPwd" class="auth-field" name="password" type="password" placeholder="Contraseña">
+        
+        <input id="docPwd" class="auth-field" name="password" type="password" placeholder="Contraseña" autocomplete="current-password">
         
         <button id="btnLogin" type="submit" class="btn auth-field">Iniciar sesión</button>
         <button id="btnLogout" type="button" class="btn hide">Cerrar sesión</button>
