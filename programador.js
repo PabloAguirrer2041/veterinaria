@@ -1,5 +1,8 @@
-// programador.js (VERSIÓN FINAL Y COMPLETA)
+// programador.js (VERSIÓN OPTIMIZADA - LINK CORTO AUTOMÁTICO)
 
+// =========================================================
+// 1. CONFIGURACIÓN SUPABASE
+// =========================================================
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
@@ -8,23 +11,17 @@ const listeners = new Set();
 let authBound = false;
 let supaPromise = null;
 
-// --- 1. CONEXIÓN ROBUSTA A SUPABASE ---
 async function getSupa(){
   if (supa) return supa;
   if (supaPromise) return supaPromise;
 
   supaPromise = (async () => {
-    // Esperar a que la librería cargue desde el HTML
     while (!window.supabase) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-    
-    // Crear cliente
     supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     });
-
-    // Configurar listener de sesión
     if (!authBound){
       supa.auth.onAuthStateChange((event, session)=>{
         const user = session?.user || null;
@@ -32,15 +29,11 @@ async function getSupa(){
       });
       authBound = true;
     }
-    
-    // Emitir estado inicial
     const { data:{ session } } = await supa.auth.getSession();
     const user = session?.user || null;
     for (const cb of [...listeners]) try{ cb(user); }catch{}
-
     return supa;
   })();
-  
   return supaPromise;
 }
 
@@ -59,80 +52,96 @@ function ready(fn){
   else document.addEventListener("DOMContentLoaded", fn, { once:true });
 }
 
-// --- 2. LÓGICA DE INTERFAZ (UI) ---
+// =========================================================
+// 2. LÓGICA DE INTERFAZ
+// =========================================================
 const $ = (s)=>document.querySelector(s);
 const uuid = ()=> (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)));
 
 let user = null;
 let current = null;
 
-// Oculta/Muestra inputs de login según el estado
 function updateAuthUI(isLoggedIn) {
-  // Selectores de los elementos a ocultar/mostrar
   const authFields = document.querySelectorAll('.auth-field');
   const logoutBtn = $("#btnLogout");
-  
   if (isLoggedIn) {
     authFields.forEach(el => el.classList.add('hide'));
-    if(logoutBtn) logoutBtn.classList.remove('hide');
+    logoutBtn.classList.remove('hide');
   } else {
     authFields.forEach(el => el.classList.remove('hide'));
-    if(logoutBtn) logoutBtn.classList.add('hide');
+    logoutBtn.classList.add('hide');
   }
 }
 
 function setOnline(on){
-  const btnSave = $("#btnSave");
-  if(btnSave) btnSave.disabled = !on;
-  
-  const btnUpdate = $("#btnUpdate");
-  if(btnUpdate) btnUpdate.disabled = !on || !current;
-  
-  const btnDelete = $("#btnDelete");
-  if(btnDelete) btnDelete.disabled = !on || !current;
+  $("#btnSave").disabled   = !on;
+  $("#btnUpdate").disabled = !on || !current;
+  $("#btnDelete").disabled = !on || !current;
 }
 
 function logMsg(m){ 
   const el=$("#log"); 
-  if(el) {
-    el.classList.remove("hide"); 
-    el.textContent += m + "\n"; 
-    el.scrollTop = el.scrollHeight; 
-  }
+  el.classList.remove("hide"); 
+  el.textContent += m + "\n"; 
+  el.scrollTop = el.scrollHeight; 
 }
 
-// Genera el link y muestra controles IoT
-function showLink(id) {
-  const fullUrl = window.location.origin + `/perfil.html?id=${id}`;
-  const linkContainer = $("#newLink");
+// --- NUEVA FUNCIÓN: Genera el link corto y actualiza la UI ---
+async function showLink(id) {
+  const longUrl = window.location.origin + `/perfil.html?id=${id}`;
+  const container = $("#newLink");
   
-  if(linkContainer) {
-    linkContainer.innerHTML = `
-      <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">URL del Perfil Público (Copiar):</label>
-      <input id="currentUrlInput" type="text" value="${fullUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
+  // 1. Mostrar estado de carga visualmente
+  container.innerHTML = `
+    <label style="font-size:12px; color:#5b6b83;">Generando link corto...</label>
+    <div style="height:4px; width:100%; background:#e0f2f1; overflow:hidden; border-radius:2px;">
+      <div style="height:100%; width:50%; background:#0ea5a0; animation:loading 1s infinite;"></div>
+    </div>
+    <style>@keyframes loading {0%{margin-left:-50%} 100%{margin-left:100%}}</style>
+  `;
+
+  try {
+    // 2. Acortar el link AUTOMÁTICAMENTE
+    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    let finalUrl = longUrl; // Fallback por si falla
+    
+    if (response.ok) {
+      finalUrl = await response.text();
+    }
+
+    // 3. Mostrar el link corto final
+    container.innerHTML = `
+      <label style="font-size:12px; color:#5b6b83; display:block; margin-bottom:4px;">Link Corto (Listo para grabar):</label>
+      <input id="currentUrlInput" type="text" value="${finalUrl}" readonly onclick="this.select()" style="width:100%; padding:10px; border:2px solid #0ea5a0; border-radius:8px; background:#f0fdfd; color:#0f172a; font-weight:bold; font-family: monospace;">
     `;
+    
+    // 4. Mostrar controles IOT
+    const iotControls = $("#iotControls");
+    if(iotControls) iotControls.classList.remove("hide");
+
+  } catch (error) {
+    console.error("Error acortando link:", error);
+    // Si falla, mostramos el largo
+    container.innerHTML = `<input id="currentUrlInput" type="text" value="${longUrl}" ...>`;
   }
-  
-  const iotControls = $("#iotControls");
-  if(iotControls) iotControls.classList.remove("hide");
 }
 
 function fillForm(p){
-  if($("#f_nombre")) $("#f_nombre").value = p?.nombre || "";
-  if($("#f_raza")) $("#f_raza").value   = p?.raza   || "";
-  if($("#f_edad")) $("#f_edad").value   = p?.edad   ?? "";
-  if($("#f_sexo")) $("#f_sexo").value   = p?.sexo   || "";
-  if($("#f_duenio")) $("#f_duenio").value = p?.duenio || "";
-  if($("#f_tel")) $("#f_tel").value    = p?.telefono || "";
-  if($("#f_email")) $("#f_email").value  = p?.email || "";
-  if($("#f_hist")) $("#f_hist").value   = p?.historial || "";
-  if($("#f_notas_publicas")) $("#f_notas_publicas").value = p?.notas_publicas || "";
-  if($("#f_contacto_publico")) $("#f_contacto_publico").checked = !!p?.contacto_publico;
+  $("#f_nombre").value = p?.nombre || "";
+  $("#f_raza").value   = p?.raza   || "";
+  $("#f_edad").value   = p?.edad   ?? "";
+  $("#f_sexo").value   = p?.sexo   || "";
+  $("#f_duenio").value = p?.duenio || "";
+  $("#f_tel").value    = p?.telefono || "";
+  $("#f_email").value  = p?.email || "";
+  $("#f_hist").value   = p?.historial || "";
+  $("#f_notas_publicas").value = p?.notas_publicas || "";
+  $("#f_contacto_publico").checked = !!p?.contacto_publico;
 
   if (p?.id) {
-    showLink(p.id);
+    showLink(p.id); // ¡Esto dispara el acortador automático!
   } else {
-    if($("#newLink")) $("#newLink").innerHTML = "";
+    $("#newLink").innerHTML = "";
     const iotControls = $("#iotControls");
     if(iotControls) iotControls.classList.add("hide");
   }
@@ -142,21 +151,14 @@ function fillForm(p){
 async function doLogin(){
   try{
     const supa = await getSupa();
-    const emailEl = $("#docId");
-    const pwdEl = $("#docPwd");
-    
-    if(!emailEl || !pwdEl) return; // Si no existen los campos, salir
-
-    const email = emailEl.value.trim();
-    const pwd = pwdEl.value.trim();
-    
+    const email = ($("#docId").value || "").trim();
+    const pwd = ($("#docPwd").value || "").trim();
     if (!email || !pwd) return alert("Escribe Correo y contraseña");
     
     const { error } = await supa.auth.signInWithPassword({ email, password: pwd });
     if (error) return alert(`Error: ${error.message}`);
-    
-    pwdEl.value = "";
-  }catch(e){ console.error("[login]", e); alert("No se pudo iniciar sesión."); }
+    $("#docPwd").value = "";
+  }catch(e){ console.error("[login]", e); }
 }
 
 async function doLogout(){
@@ -185,8 +187,7 @@ async function saveNew(){
   const supa = await getSupa();
   $("#btnSave").disabled = true;
 
-  const fileInput = $("#f_foto");
-  const file = fileInput?.files?.[0];
+  const file = $("#f_foto")?.files?.[0];
   const foto_url = file ? await uploadPhoto(file) : null;
 
   const payload = {
@@ -207,12 +208,15 @@ async function saveNew(){
   if(!payload.nombre){ alert("Nombre es obligatorio"); $("#btnSave").disabled=false; return; }
 
   const { data, error } = await supa.from("mascotas").insert(payload).select("id").single();
-  if(error){ logMsg("✖ Insert: " + error.message); }
-  else { 
+  if(error){ 
+    logMsg("✖ Insert: " + error.message); 
+  } else { 
     logMsg("✅ Guardado ID " + data.id); 
     current = { id:data.id, ...payload }; 
     $("#btnUpdate").disabled=false; 
     $("#btnDelete").disabled=false;
+    
+    // Llamamos al acortador automático
     showLink(data.id); 
     window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
   }
@@ -225,8 +229,7 @@ async function updateCurrent(){
   $("#btnUpdate").disabled = true;
 
   let foto_url = current.foto_url || null;
-  const fileInput = $("#f_foto");
-  const file = fileInput?.files?.[0];
+  const file = $("#f_foto")?.files?.[0];
   if (file){ const up = await uploadPhoto(file); if(up) foto_url = up; }
 
   const payload = {
@@ -244,9 +247,11 @@ async function updateCurrent(){
   };
 
   const { error } = await supa.from("mascotas").update(payload).eq("id", current.id);
-  if(error){ logMsg("✖ Update: " + error.message); }
-  else { 
+  if(error){ 
+    logMsg("✖ Update: " + error.message); 
+  } else { 
     logMsg("✅ Actualizado ID " + current.id); 
+    // Actualizamos el link corto por si acaso
     showLink(current.id); 
   }
   $("#btnUpdate").disabled = false;
@@ -263,7 +268,7 @@ async function deleteCurrent(){
   current = null;
   $("#btnUpdate").disabled = true;
   $("#btnDelete").disabled = true;
-  if($("#results")) $("#results").innerHTML = "";
+  $("#results").innerHTML = "";
   fillForm({});
 }
 
@@ -309,7 +314,7 @@ async function search(){
   });
 }
 
-// --- IOT HEARTBEAT MONITOR ---
+// --- IOT: HEARTBEAT ---
 let espTimer = null;
 function updateEspStatus(online) {
   const el = $("#espStatus");
@@ -317,127 +322,78 @@ function updateEspStatus(online) {
   const dot = el.querySelector("div");
   const text = el.querySelector("span");
   if (online) {
-    el.style.background = "#dcfce7";
-    el.style.color = "#15803d";
-    el.style.borderColor = "#86efac";
-    dot.style.background = "#15803d";
-    dot.style.boxShadow = "0 0 0 2px #dcfce7";
+    el.style.background = "#dcfce7"; el.style.color = "#15803d"; el.style.borderColor = "#86efac";
+    dot.style.background = "#15803d"; dot.style.boxShadow = "0 0 0 2px #dcfce7";
     text.textContent = "Programador: Conectado";
   } else {
-    el.style.background = "#fee2e2";
-    el.style.color = "#b91c1c";
-    el.style.borderColor = "#fecaca";
-    dot.style.background = "#b91c1c";
-    dot.style.boxShadow = "none";
+    el.style.background = "#fee2e2"; el.style.color = "#b91c1c"; el.style.borderColor = "#fecaca";
+    dot.style.background = "#b91c1c"; dot.style.boxShadow = "none";
     text.textContent = "Programador: Desconectado";
   }
 }
 
 async function initEspMonitor() {
   const supa = await getSupa();
-  
-  // Usamos POLLING (consulta activa) para mayor estabilidad
   const checkHeartbeat = async () => {
     try {
       const { data } = await supa.from('status_esp32').select('updated_at').eq('id', 1).single();
       if (data) {
         const lastSeen = new Date(data.updated_at).getTime();
-        const now = new Date().getTime();
-        // Si el latido fue hace menos de 15 segundos, está online
-        if (now - lastSeen < 15000) updateEspStatus(true);
+        const diff = Math.abs(new Date().getTime() - lastSeen);
+        // 60 segundos de tolerancia
+        if (diff < 60000) updateEspStatus(true);
         else updateEspStatus(false);
       }
-    } catch (err) {
-      // Ignorar errores de red temporales
-    }
+    } catch (err) {}
   };
-
-  // Chequeo inicial y luego cada 5 segundos
   checkHeartbeat();
   setInterval(checkHeartbeat, 5000);
 }
 
-// --- FUNCIÓN ENVIAR A ESP32 ---
-/* --------- IOT: ENVIAR A ESP32 (CON ACORTADOR) --------- */
+// --- IOT: ENVIAR LINK CORTO (YA GENERADO) ---
 async function sendToDevice() {
   const urlInput = $("#currentUrlInput");
-  if (!urlInput || !urlInput.value) return alert("No hay una URL generada para enviar.");
+  // Aquí YA tomamos el link corto que generó showLink()
+  const urlToSend = urlInput ? urlInput.value : "";
   
-  const originalUrl = urlInput.value;
+  if (!urlToSend) return alert("No hay URL lista para enviar.");
+  
   const statusMsg = $("#iotStatusMsg");
   const btn = $("#btnSendToEsp");
 
-  btn.disabled = true;
-  btn.textContent = "Acortando link...";
-  statusMsg.style.display = "block";
-  statusMsg.textContent = "⏳ Generando link corto...";
+  if(btn) { btn.disabled = true; btn.textContent = "Enviando..."; }
+  if(statusMsg) { statusMsg.style.display = "block"; statusMsg.textContent = "⏳ Enviando orden..."; }
 
   try {
-    // 1. ACORTAR LINK (Usando API pública de TinyURL)
-    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(originalUrl)}`);
-    if (!response.ok) throw new Error("No se pudo acortar el link");
-    const shortUrl = await response.text();
-    
-    console.log("Link original:", originalUrl);
-    console.log("Link corto:", shortUrl);
-
-    // 2. ENVIAR A SUPABASE (Ahora enviamos el corto)
-    btn.textContent = "Enviando al dispositivo...";
-    statusMsg.textContent = "⏳ Enviando orden al ESP32...";
-
     const supa = await getSupa();
-    const { error } = await supa
-      .from('status_esp32')
-      .update({ pending_write: shortUrl }) // <--- Enviamos shortUrl
-      .eq('id', 1);
-
+    // Enviamos el link corto directamente
+    const { error } = await supa.from('status_esp32').update({ pending_write: urlToSend }).eq('id', 1);
     if (error) throw error;
 
-    statusMsg.textContent = `✅ ¡Listo! Link corto generado: ${shortUrl}\nAcerca la etiqueta al dispositivo ahora.`;
-    statusMsg.style.color = "green";
-    
-    // Actualizar el input visual también para que el doctor vea el link corto
-    urlInput.value = shortUrl;
+    if(statusMsg) { 
+        statusMsg.textContent = "✅ ¡Enviado! Acerca la etiqueta ahora."; 
+        statusMsg.style.color = "green"; 
+    }
     
     setTimeout(() => {
-      btn.disabled = false;
-      btn.textContent = "Enviar código al Programador";
-      // statusMsg.textContent = ""; // Dejar el mensaje un poco más para que vean el link
+      if(btn) { btn.disabled = false; btn.textContent = "Enviar código al Programador"; }
+      if(statusMsg) statusMsg.textContent = "";
     }, 5000);
-
   } catch (e) {
     console.error(e);
-    statusMsg.textContent = "❌ Error: " + e.message;
-    statusMsg.style.color = "red";
-    btn.disabled = false;
-    btn.textContent = "Reintentar";
+    if(statusMsg) { statusMsg.textContent = "❌ Error: " + e.message; statusMsg.style.color = "red"; }
+    if(btn) { btn.disabled = false; btn.textContent = "Reintentar"; }
   }
 }
 
-/* --------- ARRANQUE MAESTRO --------- */
+/* --------- ARRANQUE --------- */
 ready(async ()=>{
-  try { 
-    await getSupa(); 
-  } catch(e){ 
-    console.error(e);
-    setOnline(false);
-    return;
-  }
+  try { await getSupa(); } catch(e){ console.error(e); setOnline(false); return; }
   
-  // Listeners de Login
   const loginForm = $("#loginForm");
-  if (loginForm) {
-    loginForm.addEventListener("submit", (e) => {
-      e.preventDefault(); 
-      doLogin();
-    });
-  } else {
-    // Fallback para botón sin formulario
-    const btnLogin = $("#btnLogin");
-    if(btnLogin) btnLogin.addEventListener("click", doLogin);
-  }
+  if (loginForm) loginForm.addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
+  else { const btn = $("#btnLogin"); if(btn) btn.addEventListener("click", doLogin); }
 
-  // Resto de listeners
   if($("#btnLogout")) $("#btnLogout").addEventListener("click", doLogout);
   if($("#btnSearch")) $("#btnSearch").addEventListener("click", search);
   if($("#q")) $("#q").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); search(); }});
@@ -446,7 +402,6 @@ ready(async ()=>{
   if($("#btnUpdate")) $("#btnUpdate").addEventListener("click", updateCurrent);
   if($("#btnDelete")) $("#btnDelete").addEventListener("click", deleteCurrent);
   
-  // Listener IOT (Delegado al body para que funcione aunque el botón no exista al inicio)
   document.body.addEventListener('click', (e) => {
     if(e.target && e.target.id == 'btnSendToEsp') sendToDevice();
   });
@@ -455,7 +410,6 @@ ready(async ()=>{
 
   initEspMonitor();
 
-  // Monitor de Sesión
   onSession(u=>{
     user = u;
     const sEl = $("#sessionState");
@@ -470,5 +424,3 @@ ready(async ()=>{
     }
   });
 });
-
-// FIN DEL ARCHIVO
