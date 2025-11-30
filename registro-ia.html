@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PawLinks AI</title>
+  <title>PawLinks AI (Debug)</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
   <style>
     body { margin: 0; background: #000; color: white; font-family: 'Inter', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -25,7 +25,6 @@
       border: 1px solid rgba(14, 165, 160, 0.5);
       padding: 15px 25px; border-radius: 20px 20px 20px 0;
       font-size: 18px; line-height: 1.4; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-      animation: float 3s ease-in-out infinite;
       max-width: 90%;
     }
 
@@ -34,25 +33,24 @@
       background: white; border: 4px solid rgba(255,255,255,0.3);
       border-radius: 50%; cursor: pointer;
       box-shadow: 0 0 20px rgba(255,255,255,0.2);
-      transition: transform 0.1s, background 0.3s;
     }
-    .btn-capture:active { transform: scale(0.9); background: #eee; }
     .btn-capture.loading { border-color: #0ea5a0; animation: spin 1s infinite linear; background: transparent; }
 
+    /* Tarjeta de resultados (Ahora con scroll por si hay error largo) */
     .data-card {
       background: white; color: #111; border-radius: 16px; padding: 20px; width: 100%;
-      text-align: left; transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      text-align: left; transform: translateY(100%); transition: transform 0.3s ease;
       position: absolute; bottom: 0; left: 0; z-index: 10;
+      max-height: 50vh; overflow-y: auto;
     }
     .data-card.show { transform: translateY(0); }
 
     .field { margin-bottom: 15px; }
     .label { font-size: 12px; color: #666; text-transform: uppercase; font-weight: bold; }
-    .value { font-size: 20px; font-weight: 800; color: #0ea5a0; }
+    .value { font-size: 20px; font-weight: 800; color: #0ea5a0; word-break: break-word; }
     
     .btn-confirm { background: #0ea5a0; color: white; border: none; padding: 15px; width: 100%; border-radius: 12px; font-size: 16px; font-weight: bold; margin-top: 10px; }
 
-    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
     @keyframes spin { to { transform: rotate(360deg); } }
     .hide { display: none !important; }
   </style>
@@ -64,7 +62,7 @@
     <canvas id="canvas"></canvas>
     
     <div class="ui-layer">
-      <div id="aiMessage" class="ai-bubble">👋 Hola, soy PawAI. Muéstrame a tu mascota.</div>
+      <div id="aiMessage" class="ai-bubble">👋 Hola. Muéstrame a tu mascota.</div>
       <button id="btnSnap" class="btn-capture"></button>
     </div>
 
@@ -77,18 +75,22 @@
         <div class="label">Edad Visual Aprox.</div>
         <div class="value" id="resEdad">...</div>
       </div>
-      <button class="btn-confirm" onclick="location.reload()">Registrar otra (Reiniciar)</button>
+      
+      <div id="debugArea" class="hide" style="background:#fef2f2; padding:10px; border-radius:8px; border:1px solid #fecaca; margin-bottom:10px;">
+        <div class="label" style="color:#b91c1c;">Diagnóstico Técnico:</div>
+        <pre id="debugText" style="font-size:10px; white-space:pre-wrap; color:#7f1d1d;">Esperando datos...</pre>
+      </div>
+
+      <button class="btn-confirm" onclick="location.reload()">Intentar de nuevo</button>
     </div>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 <script>
-  // --- CONFIGURACIÓN ---
   const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-  // --- VARIABLES ---
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
   const aiMsg = document.getElementById('aiMessage');
@@ -96,76 +98,80 @@
   const resultCard = document.getElementById('resultCard');
   let supa;
 
-  // --- 1. INICIAR SISTEMA ---
   async function init() {
     supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    
     try {
-      // Pedir cámara (trasera preferentemente)
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" } 
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       video.srcObject = stream;
-      speak("Hola. Enfoca a tu mascota y presiona el botón para analizarla.");
     } catch (err) {
-      aiMsg.textContent = "🚫 Error: No puedo ver sin acceso a la cámara.";
-      console.error(err);
+      aiMsg.textContent = "🚫 Error: Activa la cámara.";
     }
   }
 
-  // --- 2. CAPTURAR Y ANALIZAR ---
   btnSnap.onclick = async () => {
-    // UI Feedback
     btnSnap.classList.add('loading');
-    video.pause(); // Congelar imagen
-    aiMsg.textContent = "🧠 Analizando... Dame un segundo.";
+    video.pause();
+    aiMsg.textContent = "🧠 Pensando...";
     
-    // Capturar frame
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
     
-    // Convertir a Base64 (JPG calidad media)
-    const base64 = canvas.toDataURL('image/jpeg', 0.6);
-    const cleanBase64 = base64.split(',')[1]; // Quitar header
+    // Bajamos calidad a 0.5 para asegurar que viaje rápido
+    const base64 = canvas.toDataURL('image/jpeg', 0.5);
+    const cleanBase64 = base64.split(',')[1];
 
     try {
-      // LLAMADA A TU EDGE FUNCTION (GEMINI)
       const { data, error } = await supa.functions.invoke('analizar-mascota', {
         body: { imageBase64: cleanBase64 }
       });
 
-      if (error) throw error;
+      // --- ZONA DE DIAGNÓSTICO ---
+      // Si hay error en la conexión
+      if (error) throw new Error("Error de Red/Función: " + JSON.stringify(error));
 
-      // ÉXITO
-      console.log("IA Respondió:", data);
-      
-      // Mostrar datos
+      // Si la IA respondió algo vacío
+      if (!data || Object.keys(data).length === 0) {
+        throw new Error("Respuesta vacía de la IA (¿Posible filtro de seguridad?)");
+      }
+
+      // Si falta la raza, mostramos lo que llegó crudo para entender
+      if (!data.raza) {
+        document.getElementById('debugArea').classList.remove('hide');
+        document.getElementById('debugText').textContent = JSON.stringify(data, null, 2);
+        throw new Error("Datos incompletos. Mira el diagnóstico abajo.");
+      }
+
+      // ÉXITO NORMAL
       document.getElementById('resRaza').textContent = data.raza;
       document.getElementById('resEdad').textContent = data.edad_aprox;
       resultCard.classList.add('show');
       btnSnap.classList.add('hide');
-      
-      // Hablar respuesta
       aiMsg.textContent = "💬 " + data.mensaje_voz;
       speak(data.mensaje_voz);
 
     } catch (e) {
       console.error(e);
-      aiMsg.textContent = "❌ Error: La IA está dormida o hubo un error de red.";
-      video.play();
-      btnSnap.classList.remove('loading');
+      aiMsg.textContent = "⚠️ Ocurrió un problema.";
+      
+      // Mostrar tarjeta con error visible
+      resultCard.classList.add('show');
+      btnSnap.classList.add('hide');
+      document.getElementById('debugArea').classList.remove('hide');
+      document.getElementById('resRaza').textContent = "Error";
+      document.getElementById('resEdad').textContent = "-";
+      
+      // Escribir el error técnico en la cajita roja
+      document.getElementById('debugText').textContent = e.message;
     }
   };
 
-  // --- 3. SÍNTESIS DE VOZ ---
   function speak(text) {
     if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'es-MX'; // Español Latino
-      utterance.rate = 1.1;
-      window.speechSynthesis.speak(utterance);
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'es-MX'; u.rate = 1.1;
+      window.speechSynthesis.speak(u);
     }
   }
 
