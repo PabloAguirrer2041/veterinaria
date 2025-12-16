@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Doctor - TuVet</title>
+    
+    <link rel="stylesheet" href="styles.css"> 
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+<div class="container">
+    
+    <div class="header-row">
+        <h1>👨‍⚕️ Doctor · Gestión de Pacientes</h1>
+        <button id="logoutBtn" class="btn-secondary">Cerrar Sesión</button>
+    </div>
+
+    <div id="espStatus" class="status-badge disconnected">
+        🔴 Buscando Programador...
+    </div>
+
+    <div class="search-bar-container">
+        <input type="text" id="searchInput" placeholder="Buscar por nombre de mascota...">
+        <button onclick="buscarMascota()" class="btn-search">🔍 Buscar</button>
+    </div>
+
+    <div class="card">
+        
+        <div class="doctor-grid">
+            
+            <div class="form-column">
+                <div class="input-group">
+                    <label>Nombre de la Mascota</label>
+                    <input type="text" id="nombre">
+                </div>
+                
+                <div class="row">
+                    <div class="input-group">
+                        <label>Raza</label>
+                        <input type="text" id="raza">
+                    </div>
+                    <div class="input-group">
+                        <label>Sexo</label>
+                        <select id="sexo">
+                            <option value="Macho">Macho</option>
+                            <option value="Hembra">Hembra</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="input-group">
+                        <label>Edad (Años)</label>
+                        <input type="number" id="edad">
+                    </div>
+                    <div class="input-group">
+                        <label>Teléfono Dueño</label>
+                        <input type="text" id="telefono">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Nombre del Dueño</label>
+                    <input type="text" id="duenio">
+                </div>
+
+                <div class="input-group">
+                    <label>Email Dueño</label>
+                    <input type="email" id="email">
+                </div>
+            </div>
+
+            <div class="photo-column">
+                <label>Fotografía del Paciente</label>
+                <div class="photo-upload-zone" onclick="document.getElementById('fotoInput').click()">
+                    <img id="previewImg" src="https://via.placeholder.com/300x300?text=Sin+Foto" alt="Foto Mascota">
+                    
+                    <div class="upload-overlay">
+                        <span class="upload-text">📸 Toca para cambiar foto</span>
+                    </div>
+
+                    <input type="file" id="fotoInput" accept="image/*" onchange="previewFile()">
+                </div>
+            </div>
+
+        </div> <div class="full-width-section">
+            <div class="input-group">
+                <label>🔒 Historial Médico / Notas Privadas</label>
+                <textarea id="historial" rows="4" placeholder="Solo visible para el doctor..."></textarea>
+            </div>
+
+            <div class="public-check">
+                <input type="checkbox" id="publicContact">
+                <label for="publicContact">Mostrar contacto públicamente en el perfil NFC (Si se pierde)</label>
+            </div>
+
+            <div class="input-group">
+                <label>🌍 Notas Públicas (Vacunas, Alertas, Extravío)</label>
+                <textarea id="notasPublicas" rows="4" placeholder="Visible al escanear el dije..."></textarea>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button onclick="guardarMascota()" class="btn-primary">💾 Guardar / Actualizar</button>
+            <button onclick="limpiarFormulario()" class="btn-secondary">🧹 Limpiar</button>
+            <button onclick="eliminarMascota()" class="btn-danger" id="btnDelete" style="display:none;">🗑️ Eliminar</button>
+        </div>
+
+        <div class="nfc-section" id="nfcSection" style="display:none;">
+            <hr>
+            <h3>📡 Vincular Dije PawLinks</h3>
+            <p>Link listo para grabar: <b id="shortLinkDisplay">...</b></p>
+            <button onclick="enviarAProgramador()" class="btn-nfc">🖨️ Enviar orden al PawLinker</button>
+        </div>
+        
+    </div>
+</div>
+
+<script src="admin.js"></script>
+
+</body>
+</html>

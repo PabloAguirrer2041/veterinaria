@@ -1,0 +1,118 @@
+/* --- LAYOUT GRID --- */
+.doctor-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr; /* Izquierda más ancha, Derecha foto */
+    gap: 30px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .doctor-grid {
+        grid-template-columns: 1fr; /* En celular se pone uno debajo de otro */
+    }
+}
+
+.row {
+    display: flex;
+    gap: 15px;
+}
+.row .input-group {
+    flex: 1;
+}
+
+/* --- ZONA DE FOTO (MEJORADA) --- */
+.photo-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.photo-upload-zone {
+    flex: 1;
+    min-height: 250px;
+    background-color: #f1f5f9;
+    border: 2px dashed #cbd5e1;
+    border-radius: 15px;
+    position: relative; /* Para posicionar el texto encima */
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.photo-upload-zone:hover {
+    border-color: #0ea5a0;
+    background-color: #e0f2fe;
+}
+
+/* La imagen ocupa todo el espacio */
+.photo-upload-zone img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Recorta la imagen para llenar el cuadro sin deformar */
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+/* Texto superpuesto */
+.upload-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+    height: 100%;
+    display: flex;
+    align-items: flex-end; /* Texto abajo */
+    justify-content: center;
+    padding-bottom: 20px;
+    z-index: 2;
+    opacity: 0.8; /* Levemente transparente */
+    transition: opacity 0.3s;
+}
+
+/* Efecto hover: Texto más visible */
+.photo-upload-zone:hover .upload-overlay {
+    opacity: 1;
+}
+
+.upload-text {
+    color: white;
+    font-weight: bold;
+    font-size: 1.1rem;
+    text-shadow: 0px 2px 4px rgba(0,0,0,0.8);
+    background-color: rgba(255, 255, 255, 0.2); /* Fondo sutil */
+    padding: 5px 15px;
+    border-radius: 20px;
+    backdrop-filter: blur(2px);
+}
+
+/* Input file oculto pero funcional */
+#fotoInput {
+    display: none;
+}
+
+/* --- BOTONES Y BUSCADOR --- */
+.search-bar-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+#searchInput {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+}
+.btn-search {
+    background-color: #0ea5a0;
+    color: white;
+    border: none;
+    padding: 0 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
