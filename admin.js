@@ -4,8 +4,7 @@
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-// --- CORRECCIÓN DE ERROR DE CONEXIÓN ---
-// Usamos 'sb' como nombre del cliente para no chocar con la librería global
+// Cliente Supabase (Usamos 'sb' para evitar conflictos de nombres)
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -14,19 +13,34 @@ let currentPetId = null;
 const HEARTBEAT_INTERVAL = 3000; 
 const OFFLINE_THRESHOLD = 15000; 
 
-// Elementos del DOM 
+// Elementos del DOM (Cacheamos para usar rápido)
 const statusDiv = document.getElementById('espStatus');
 const previewImg = document.getElementById('previewImg');
 const fotoInput = document.getElementById('fotoInput');
 const shortLinkDisplay = document.getElementById('shortLinkDisplay');
 
 // ==========================================
-// 1. INICIALIZACIÓN
+// 1. INICIALIZACIÓN (AL CARGAR LA PÁGINA)
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    
+    // --- 🔒 GUARDIA DE SEGURIDAD (AUTH CHECK) ---
+    // Verificamos si hay una sesión activa en Supabase
+    const { data: { session } } = await sb.auth.getSession();
+
+    if (!session) {
+        // Si no hay sesión, expulsar al usuario
+        console.warn("Acceso denegado: No hay sesión activa.");
+        window.location.href = 'login.html';
+        return; // Detener el resto del script
+    }
+
+    console.log("✅ Acceso Autorizado. Doctor:", session.user.email);
+    // --------------------------------------------
+
+    // Iniciar monitoreo del ESP32 (PawLinker)
     checkProgrammerStatus();
     setInterval(checkProgrammerStatus, HEARTBEAT_INTERVAL);
-    console.log("Sistema Doctor Cargado Correctamente");
 });
 
 // ==========================================
@@ -35,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function checkProgrammerStatus() {
     try {
-        const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
+        const { data, error } = await sb
             .from('status_esp32')
             .select('updated_at')
             .eq('id', 1)
@@ -44,11 +58,12 @@ async function checkProgrammerStatus() {
         if (data) {
             const lastSeen = new Date(data.updated_at).getTime();
             const now = new Date().getTime();
+            // Si el ESP32 reportó hace menos de 15s, está ONLINE
             const isOnline = (now - lastSeen) < OFFLINE_THRESHOLD;
             updateStatusUI(isOnline);
         }
     } catch (err) {
-        // Silenciamos el error en consola para no llenar de basura, solo marcamos desconectado
+        // Silencioso para no saturar la consola
         updateStatusUI(false);
     }
 }
@@ -66,6 +81,7 @@ function updateStatusUI(isOnline) {
 async function enviarAProgramador() {
     const linkText = shortLinkDisplay.innerText;
 
+    // Validaciones
     if (!linkText || linkText === '...' || !linkText.includes('http')) {
         return Swal.fire('Error', 'Primero busca o guarda una mascota para generar el link.', 'warning');
     }
@@ -81,7 +97,8 @@ async function enviarAProgramador() {
             didOpen: () => Swal.showLoading()
         });
 
-        const { error } = await sb // <--- CAMBIO AQUÍ (sb)
+        // Enviar orden a la base de datos
+        const { error } = await sb
             .from('status_esp32')
             .update({ 
                 pending_write: linkText,
@@ -112,7 +129,7 @@ function previewFile() {
     const reader = new FileReader();
 
     reader.addEventListener("load", function () {
-        previewImg.src = reader.result; 
+        previewImg.src = reader.result; // Previsualización instantánea
     }, false);
 
     if (file) {
@@ -124,6 +141,7 @@ function previewFile() {
 // 4. LÓGICA DE DATOS (MASCOTAS)
 // ==========================================
 
+// BUSCAR
 async function buscarMascota() {
     const query = document.getElementById('searchInput').value.trim();
     if (!query) return Swal.fire('Ojo', 'Escribe un nombre para buscar', 'info');
@@ -131,7 +149,8 @@ async function buscarMascota() {
     try {
         Swal.fire({ title: 'Buscando...', didOpen: () => Swal.showLoading() });
 
-        const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
+        // Búsqueda insensible a mayúsculas/minúsculas (ilike)
+        const { data, error } = await sb
             .from('mascotas')
             .select('*')
             .ilike('nombre', `%${query}%`); 
@@ -146,7 +165,7 @@ async function buscarMascota() {
         } else {
             Swal.fire('No encontrado', 'No hay mascotas con ese nombre. Puedes registrarla nueva.', 'info');
             limpiarFormulario(); 
-            document.getElementById('nombre').value = query; 
+            document.getElementById('nombre').value = query; // Mantiene lo escrito para registrar rápido
         }
 
     } catch (err) {
@@ -155,12 +174,14 @@ async function buscarMascota() {
     }
 }
 
+// GUARDAR / ACTUALIZAR
 async function guardarMascota() {
     const nombre = document.getElementById('nombre').value;
     const raza = document.getElementById('raza').value;
     
     if(!nombre || !raza) return Swal.fire('Faltan datos', 'Nombre y Raza son obligatorios', 'warning');
 
+    // Objeto con los datos del formulario
     const datos = {
         nombre: nombre,
         raza: raza,
@@ -177,28 +198,32 @@ async function guardarMascota() {
     try {
         Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
 
-        // 1. Subir Foto
+        // 1. Subir Foto (Si se seleccionó una nueva)
         const file = fotoInput.files[0];
         if (file) {
-            const fileName = `foto_${Date.now()}.jpg`;
-            const { data: uploadData, error: uploadError } = await sb.storage // <--- CAMBIO AQUÍ (sb)
+            const fileName = `foto_${Date.now()}.jpg`; // Nombre único
+            
+            // Subir al bucket 'mascotas-fotos'
+            const { data: uploadData, error: uploadError } = await sb.storage
                 .from('mascotas-fotos') 
                 .upload(fileName, file);
             
             if (uploadError) throw uploadError;
 
-            const { data: publicUrlData } = sb.storage // <--- CAMBIO AQUÍ (sb)
+            // Obtener la URL pública
+            const { data: publicUrlData } = sb.storage
                 .from('mascotas-fotos')
                 .getPublicUrl(fileName);
             
-            datos.foto_url = publicUrlData.publicUrl;
+            datos.foto_url = publicUrlData.publicUrl; // Guardamos la URL en la base de datos
         }
 
         let resultData;
 
         // 2. Guardar en Base de Datos
         if (currentPetId) {
-            const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
+            // ACTUALIZAR (Si ya tiene ID)
+            const { data, error } = await sb
                 .from('mascotas')
                 .update(datos)
                 .eq('id', currentPetId)
@@ -206,7 +231,8 @@ async function guardarMascota() {
             if (error) throw error;
             resultData = data[0];
         } else {
-            const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
+            // CREAR NUEVO (Si no tiene ID)
+            const { data, error } = await sb
                 .from('mascotas')
                 .insert([datos])
                 .select();
@@ -214,6 +240,7 @@ async function guardarMascota() {
             resultData = data[0];
         }
 
+        // 3. Refrescar formulario con los datos guardados
         cargarDatosEnFormulario(resultData); 
         Swal.fire('¡Guardado!', 'El expediente se actualizó correctamente.', 'success');
 
@@ -223,6 +250,7 @@ async function guardarMascota() {
     }
 }
 
+// ELIMINAR
 async function eliminarMascota() {
     if (!currentPetId) return;
 
@@ -236,7 +264,7 @@ async function eliminarMascota() {
     });
 
     if (confirm.isConfirmed) {
-        const { error } = await sb.from('mascotas').delete().eq('id', currentPetId); // <--- CAMBIO AQUÍ (sb)
+        const { error } = await sb.from('mascotas').delete().eq('id', currentPetId);
         if (error) Swal.fire('Error', error.message, 'error');
         else {
             Swal.fire('Eliminado', 'El registro ha sido borrado.', 'success');
@@ -246,12 +274,13 @@ async function eliminarMascota() {
 }
 
 // ==========================================
-// 5. UTILIDADES
+// 5. UTILIDADES (HELPERS)
 // ==========================================
 
 function cargarDatosEnFormulario(p) {
     currentPetId = p.id;
     
+    // Rellenar campos
     document.getElementById('nombre').value = p.nombre || '';
     document.getElementById('raza').value = p.raza || '';
     document.getElementById('sexo').value = p.sexo || 'Macho';
@@ -263,12 +292,14 @@ function cargarDatosEnFormulario(p) {
     document.getElementById('notasPublicas').value = p.notas_publicas || '';
     document.getElementById('publicContact').checked = p.contacto_publico || false;
 
+    // Foto
     if (p.foto_url) {
         previewImg.src = p.foto_url;
     } else {
         previewImg.src = "https://via.placeholder.com/300x300?text=Sin+Foto";
     }
 
+    // Mostrar botones extra
     document.getElementById('btnDelete').style.display = 'inline-block';
     document.getElementById('nfcSection').style.display = 'block';
 
@@ -282,12 +313,19 @@ function limpiarFormulario() {
     document.querySelectorAll('input, textarea').forEach(i => i.value = '');
     document.getElementById('sexo').value = 'Macho';
     previewImg.src = "https://via.placeholder.com/300x300?text=Sin+Foto";
+    fotoInput.value = ""; // Limpiar input file
     
     document.getElementById('btnDelete').style.display = 'none';
     document.getElementById('nfcSection').style.display = 'none';
     shortLinkDisplay.innerText = '...';
 }
 
-document.getElementById('logoutBtn').addEventListener('click', () => {
+// ==========================================
+// 6. CERRAR SESIÓN
+// ==========================================
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    // 1. Cerrar sesión en Supabase
+    await sb.auth.signOut();
+    // 2. Redirigir al inicio
     window.location.href = 'index.html';
 });
