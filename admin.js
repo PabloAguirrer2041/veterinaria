@@ -4,41 +4,38 @@
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// --- CORRECCIÓN DE ERROR DE CONEXIÓN ---
+// Usamos 'sb' como nombre del cliente para no chocar con la librería global
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Variables Globales
-let currentPetId = null; // Para saber si estamos editando o creando
-const HEARTBEAT_INTERVAL = 3000; // Revisar ESP32 cada 3s
-const OFFLINE_THRESHOLD = 15000; // Tiempo para considerar desconectado
+let currentPetId = null; 
+const HEARTBEAT_INTERVAL = 3000; 
+const OFFLINE_THRESHOLD = 15000; 
 
-// Elementos del DOM (Cacheamos para no buscarlos a cada rato)
+// Elementos del DOM 
 const statusDiv = document.getElementById('espStatus');
 const previewImg = document.getElementById('previewImg');
 const fotoInput = document.getElementById('fotoInput');
 const shortLinkDisplay = document.getElementById('shortLinkDisplay');
 
 // ==========================================
-// 1. INICIALIZACIÓN (AL CARGAR LA PÁGINA)
+// 1. INICIALIZACIÓN
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Verificar si hay sesión de doctor (Opcional, si implementaste login web)
-    // checkSession(); 
-
-    // Iniciar monitoreo del ESP32
     checkProgrammerStatus();
     setInterval(checkProgrammerStatus, HEARTBEAT_INTERVAL);
-
     console.log("Sistema Doctor Cargado Correctamente");
 });
 
 // ==========================================
-// 2. LÓGICA DEL PROGRAMADOR (ESP32 / PAWLINKER)
+// 2. LÓGICA DEL PROGRAMADOR (ESP32)
 // ==========================================
 
-// Revisa si el ESP32 está vivo
 async function checkProgrammerStatus() {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
             .from('status_esp32')
             .select('updated_at')
             .eq('id', 1)
@@ -47,17 +44,15 @@ async function checkProgrammerStatus() {
         if (data) {
             const lastSeen = new Date(data.updated_at).getTime();
             const now = new Date().getTime();
-            // Si la última señal fue hace menos de 15s, está ONLINE
             const isOnline = (now - lastSeen) < OFFLINE_THRESHOLD;
             updateStatusUI(isOnline);
         }
     } catch (err) {
-        console.error("Error monitor:", err);
+        // Silenciamos el error en consola para no llenar de basura, solo marcamos desconectado
         updateStatusUI(false);
     }
 }
 
-// Actualiza el letrero verde/rojo
 function updateStatusUI(isOnline) {
     if (isOnline) {
         statusDiv.className = 'status-badge connected';
@@ -68,7 +63,6 @@ function updateStatusUI(isOnline) {
     }
 }
 
-// Envía la orden de grabar al ESP32
 async function enviarAProgramador() {
     const linkText = shortLinkDisplay.innerText;
 
@@ -87,7 +81,7 @@ async function enviarAProgramador() {
             didOpen: () => Swal.showLoading()
         });
 
-        const { error } = await supabase
+        const { error } = await sb // <--- CAMBIO AQUÍ (sb)
             .from('status_esp32')
             .update({ 
                 pending_write: linkText,
@@ -111,14 +105,14 @@ async function enviarAProgramador() {
 }
 
 // ==========================================
-// 3. LÓGICA DE FOTOS (PREVISUALIZACIÓN)
+// 3. LÓGICA DE FOTOS
 // ==========================================
 function previewFile() {
     const file = fotoInput.files[0];
     const reader = new FileReader();
 
     reader.addEventListener("load", function () {
-        previewImg.src = reader.result; // Muestra la foto inmediatamente
+        previewImg.src = reader.result; 
     }, false);
 
     if (file) {
@@ -130,7 +124,6 @@ function previewFile() {
 // 4. LÓGICA DE DATOS (MASCOTAS)
 // ==========================================
 
-// BUSCAR
 async function buscarMascota() {
     const query = document.getElementById('searchInput').value.trim();
     if (!query) return Swal.fire('Ojo', 'Escribe un nombre para buscar', 'info');
@@ -138,10 +131,10 @@ async function buscarMascota() {
     try {
         Swal.fire({ title: 'Buscando...', didOpen: () => Swal.showLoading() });
 
-        const { data, error } = await supabase
+        const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
             .from('mascotas')
             .select('*')
-            .ilike('nombre', `%${query}%`); // Búsqueda flexible
+            .ilike('nombre', `%${query}%`); 
 
         Swal.close();
 
@@ -152,22 +145,20 @@ async function buscarMascota() {
             Swal.fire('Encontrado', `Se cargó a ${data[0].nombre}`, 'success');
         } else {
             Swal.fire('No encontrado', 'No hay mascotas con ese nombre. Puedes registrarla nueva.', 'info');
-            limpiarFormulario(); // Limpia para que escribas uno nuevo
-            document.getElementById('nombre').value = query; // Deja el nombre que escribiste
+            limpiarFormulario(); 
+            document.getElementById('nombre').value = query; 
         }
 
     } catch (err) {
         console.error(err);
-        Swal.fire('Error', 'Fallo en la búsqueda', 'error');
+        Swal.fire('Error', 'Fallo en la búsqueda (Revisa conexión)', 'error');
     }
 }
 
-// GUARDAR O ACTUALIZAR
 async function guardarMascota() {
-    // Recolectar datos
     const nombre = document.getElementById('nombre').value;
     const raza = document.getElementById('raza').value;
-    // ... validaciones básicas ...
+    
     if(!nombre || !raza) return Swal.fire('Faltan datos', 'Nombre y Raza son obligatorios', 'warning');
 
     const datos = {
@@ -180,25 +171,23 @@ async function guardarMascota() {
         email_duenio: document.getElementById('email').value,
         historial: document.getElementById('historial').value,
         notas_publicas: document.getElementById('notasPublicas').value,
-        // El checkbox de público/privado
         contacto_publico: document.getElementById('publicContact').checked
     };
 
     try {
         Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
 
-        // 1. Subir Foto (Si hay una nueva seleccionada)
+        // 1. Subir Foto
         const file = fotoInput.files[0];
         if (file) {
             const fileName = `foto_${Date.now()}.jpg`;
-            const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('mascotas-fotos') // Asegúrate de crear este bucket en Supabase
+            const { data: uploadData, error: uploadError } = await sb.storage // <--- CAMBIO AQUÍ (sb)
+                .from('mascotas-fotos') 
                 .upload(fileName, file);
             
             if (uploadError) throw uploadError;
 
-            // Obtener URL pública
-            const { data: publicUrlData } = supabase.storage
+            const { data: publicUrlData } = sb.storage // <--- CAMBIO AQUÍ (sb)
                 .from('mascotas-fotos')
                 .getPublicUrl(fileName);
             
@@ -207,10 +196,9 @@ async function guardarMascota() {
 
         let resultData;
 
-        // 2. Insertar o Actualizar
+        // 2. Guardar en Base de Datos
         if (currentPetId) {
-            // ACTUALIZAR (UPDATE)
-            const { data, error } = await supabase
+            const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
                 .from('mascotas')
                 .update(datos)
                 .eq('id', currentPetId)
@@ -218,8 +206,7 @@ async function guardarMascota() {
             if (error) throw error;
             resultData = data[0];
         } else {
-            // CREAR NUEVO (INSERT)
-            const { data, error } = await supabase
+            const { data, error } = await sb // <--- CAMBIO AQUÍ (sb)
                 .from('mascotas')
                 .insert([datos])
                 .select();
@@ -227,7 +214,7 @@ async function guardarMascota() {
             resultData = data[0];
         }
 
-        cargarDatosEnFormulario(resultData); // Recargar para mostrar ID y Link
+        cargarDatosEnFormulario(resultData); 
         Swal.fire('¡Guardado!', 'El expediente se actualizó correctamente.', 'success');
 
     } catch (err) {
@@ -236,7 +223,6 @@ async function guardarMascota() {
     }
 }
 
-// ELIMINAR
 async function eliminarMascota() {
     if (!currentPetId) return;
 
@@ -250,7 +236,7 @@ async function eliminarMascota() {
     });
 
     if (confirm.isConfirmed) {
-        const { error } = await supabase.from('mascotas').delete().eq('id', currentPetId);
+        const { error } = await sb.from('mascotas').delete().eq('id', currentPetId); // <--- CAMBIO AQUÍ (sb)
         if (error) Swal.fire('Error', error.message, 'error');
         else {
             Swal.fire('Eliminado', 'El registro ha sido borrado.', 'success');
@@ -260,13 +246,12 @@ async function eliminarMascota() {
 }
 
 // ==========================================
-// 5. UTILIDADES (Helpers)
+// 5. UTILIDADES
 // ==========================================
 
 function cargarDatosEnFormulario(p) {
     currentPetId = p.id;
     
-    // Textos
     document.getElementById('nombre').value = p.nombre || '';
     document.getElementById('raza').value = p.raza || '';
     document.getElementById('sexo').value = p.sexo || 'Macho';
@@ -278,19 +263,16 @@ function cargarDatosEnFormulario(p) {
     document.getElementById('notasPublicas').value = p.notas_publicas || '';
     document.getElementById('publicContact').checked = p.contacto_publico || false;
 
-    // Foto
     if (p.foto_url) {
         previewImg.src = p.foto_url;
     } else {
         previewImg.src = "https://via.placeholder.com/300x300?text=Sin+Foto";
     }
 
-    // Mostrar cosas extra
     document.getElementById('btnDelete').style.display = 'inline-block';
     document.getElementById('nfcSection').style.display = 'block';
 
-    // Link para grabar (Aquí usamos un acortador falso por ahora, o el ID directo)
-    // En producción usarías un servicio real o tu propio dominio
+    // Generar link corto para el grabador
     const linkFinal = `https://tuapp.com/p?id=${p.id}`; 
     shortLinkDisplay.innerText = linkFinal;
 }
@@ -306,8 +288,6 @@ function limpiarFormulario() {
     shortLinkDisplay.innerText = '...';
 }
 
-// Botón de salir (opcional)
 document.getElementById('logoutBtn').addEventListener('click', () => {
-    // Lógica de logout si la tienes
     window.location.href = 'index.html';
 });
