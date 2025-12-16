@@ -1,38 +1,121 @@
-/* --- LAYOUT GRID --- */
+/* RESET Y FUENTES */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f1f5f9;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    background-color: white;
+    width: 100%;
+    max-width: 1000px;
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+/* HEADER */
+.header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+h1 { color: #0f172a; margin: 0; font-size: 1.8rem; }
+
+/* ESTADO DEL PROGRAMADOR */
+.status-badge {
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+}
+.status-badge.connected {
+    background-color: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+}
+.status-badge.disconnected {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+
+/* BUSCADOR */
+.search-bar-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+#searchInput {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+.btn-search {
+    background-color: #0ea5a0;
+    color: white;
+    border: none;
+    padding: 0 25px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* --- GRID PRINCIPAL (DOS COLUMNAS) --- */
 .doctor-grid {
     display: grid;
-    grid-template-columns: 1.5fr 1fr; /* Izquierda más ancha, Derecha foto */
-    gap: 30px;
+    grid-template-columns: 1.5fr 1fr; /* Izquierda Datos, Derecha Foto */
+    gap: 40px;
     margin-bottom: 20px;
 }
 
-@media (max-width: 768px) {
-    .doctor-grid {
-        grid-template-columns: 1fr; /* En celular se pone uno debajo de otro */
-    }
+/* COLUMNA IZQUIERDA */
+.form-column {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
-
+.input-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+.input-group input, .input-group select, .input-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box; /* IMPORTANTE PARA QUE NO SE SALGAN */
+}
 .row {
     display: flex;
     gap: 15px;
 }
-.row .input-group {
-    flex: 1;
-}
+.row .input-group { flex: 1; }
 
-/* --- ZONA DE FOTO (MEJORADA) --- */
+/* COLUMNA DERECHA (FOTO) */
 .photo-column {
     display: flex;
     flex-direction: column;
 }
-
 .photo-upload-zone {
     flex: 1;
     min-height: 250px;
-    background-color: #f1f5f9;
+    background-color: #f8fafc;
     border: 2px dashed #cbd5e1;
-    border-radius: 15px;
-    position: relative; /* Para posicionar el texto encima */
+    border-radius: 12px;
+    position: relative;
     overflow: hidden;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -40,79 +123,84 @@
     align-items: center;
     justify-content: center;
 }
-
 .photo-upload-zone:hover {
     border-color: #0ea5a0;
     background-color: #e0f2fe;
 }
-
-/* La imagen ocupa todo el espacio */
 .photo-upload-zone img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Recorta la imagen para llenar el cuadro sin deformar */
+    object-fit: cover;
     position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 1;
+    top: 0; left: 0;
 }
-
-/* Texto superpuesto */
 .upload-overlay {
     position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-    height: 100%;
+    bottom: 0; left: 0; right: 0;
+    height: 60px;
+    background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
     display: flex;
-    align-items: flex-end; /* Texto abajo */
+    align-items: center;
     justify-content: center;
-    padding-bottom: 20px;
     z-index: 2;
-    opacity: 0.8; /* Levemente transparente */
-    transition: opacity 0.3s;
 }
-
-/* Efecto hover: Texto más visible */
-.photo-upload-zone:hover .upload-overlay {
-    opacity: 1;
-}
-
 .upload-text {
     color: white;
     font-weight: bold;
-    font-size: 1.1rem;
-    text-shadow: 0px 2px 4px rgba(0,0,0,0.8);
-    background-color: rgba(255, 255, 255, 0.2); /* Fondo sutil */
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    background: rgba(255,255,255,0.2);
     padding: 5px 15px;
     border-radius: 20px;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
+}
+#fotoInput { display: none; }
+
+/* SECCIONES INFERIORES */
+.full-width-section {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.public-check {
+    background-color: #f0fdf4;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #bbf7d0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #166534;
+    font-weight: bold;
 }
 
-/* Input file oculto pero funcional */
-#fotoInput {
-    display: none;
-}
-
-/* --- BOTONES Y BUSCADOR --- */
-.search-bar-container {
+/* BOTONES */
+.action-buttons {
+    margin-top: 30px;
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
 }
-#searchInput {
-    flex: 1;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
+.btn-primary { background-color: #0ea5a0; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+.btn-secondary { background-color: #fff; border: 1px solid #cbd5e1; color: #475569; padding: 12px 20px; border-radius: 8px; cursor: pointer; }
+.btn-danger { background-color: #ef4444; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; }
+
+/* SECCIÓN NFC */
+.nfc-section {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #eff6ff;
+    border-radius: 12px;
+    border: 1px solid #bfdbfe;
 }
-.btn-search {
-    background-color: #0ea5a0;
+.btn-nfc {
+    width: 100%;
+    background-color: #2563eb;
     color: white;
+    padding: 15px;
     border: none;
-    padding: 0 20px;
     border-radius: 8px;
-    cursor: pointer;
+    font-size: 1.1rem;
     font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
 }
