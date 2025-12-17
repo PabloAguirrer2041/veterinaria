@@ -7,7 +7,18 @@ body {
     display: flex;
     justify-content: center;
 }
-
+.link-input {
+    width: 100%;
+    padding: 12px;
+    background: #f1f5f9;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace; /* Fuente tipo código para leer mejor */
+    color: #334155;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    box-sizing: border-box; /* Esto evita que se salga del cuadro */
+}
 .container {
     background-color: white;
     width: 100%;
