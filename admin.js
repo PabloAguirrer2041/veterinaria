@@ -4,7 +4,7 @@
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
-// Cliente Supabase (Usamos 'sb' para evitar conflictos de nombres)
+// Cliente Supabase (Usamos 'sb' para evitar conflictos)
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -13,32 +13,29 @@ let currentPetId = null;
 const HEARTBEAT_INTERVAL = 3000; 
 const OFFLINE_THRESHOLD = 15000; 
 
-// Elementos del DOM (Cacheamos para usar rápido)
+// Elementos del DOM (Referencias actualizadas)
 const statusDiv = document.getElementById('espStatus');
 const previewImg = document.getElementById('previewImg');
 const fotoInput = document.getElementById('fotoInput');
-const shortLinkDisplay = document.getElementById('shortLinkDisplay');
+// CORRECCIÓN: Ahora apuntamos al input, no al texto <b>
+const shortLinkInput = document.getElementById('shortLinkInput'); 
 
 // ==========================================
 // 1. INICIALIZACIÓN (AL CARGAR LA PÁGINA)
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     
-    // --- 🔒 GUARDIA DE SEGURIDAD (AUTH CHECK) ---
-    // Verificamos si hay una sesión activa en Supabase
+    // --- 🔒 GUARDIA DE SEGURIDAD ---
     const { data: { session } } = await sb.auth.getSession();
 
     if (!session) {
-        // Si no hay sesión, expulsar al usuario
         console.warn("Acceso denegado: No hay sesión activa.");
         window.location.href = 'login.html';
-        return; // Detener el resto del script
+        return; 
     }
+    console.log("✅ Acceso Autorizado:", session.user.email);
 
-    console.log("✅ Acceso Autorizado. Doctor:", session.user.email);
-    // --------------------------------------------
-
-    // Iniciar monitoreo del ESP32 (PawLinker)
+    // Iniciar monitoreo del ESP32
     checkProgrammerStatus();
     setInterval(checkProgrammerStatus, HEARTBEAT_INTERVAL);
 });
@@ -58,12 +55,10 @@ async function checkProgrammerStatus() {
         if (data) {
             const lastSeen = new Date(data.updated_at).getTime();
             const now = new Date().getTime();
-            // Si el ESP32 reportó hace menos de 15s, está ONLINE
             const isOnline = (now - lastSeen) < OFFLINE_THRESHOLD;
             updateStatusUI(isOnline);
         }
     } catch (err) {
-        // Silencioso para no saturar la consola
         updateStatusUI(false);
     }
 }
@@ -79,11 +74,11 @@ function updateStatusUI(isOnline) {
 }
 
 async function enviarAProgramador() {
-    const linkText = shortLinkDisplay.innerText;
+    // CORRECCIÓN: Leemos el valor de la cajita de texto (.value)
+    const linkText = shortLinkInput.value;
 
-    // Validaciones
-    if (!linkText || linkText === '...' || !linkText.includes('http')) {
-        return Swal.fire('Error', 'Primero busca o guarda una mascota para generar el link.', 'warning');
+    if (!linkText || !linkText.includes('http')) {
+        return Swal.fire('Error', 'El link no es válido.', 'warning');
     }
 
     if (statusDiv.classList.contains('disconnected')) {
@@ -97,7 +92,6 @@ async function enviarAProgramador() {
             didOpen: () => Swal.showLoading()
         });
 
-        // Enviar orden a la base de datos
         const { error } = await sb
             .from('status_esp32')
             .update({ 
@@ -129,7 +123,7 @@ function previewFile() {
     const reader = new FileReader();
 
     reader.addEventListener("load", function () {
-        previewImg.src = reader.result; // Previsualización instantánea
+        previewImg.src = reader.result; 
     }, false);
 
     if (file) {
@@ -149,23 +143,23 @@ async function buscarMascota() {
     try {
         Swal.fire({ title: 'Buscando...', didOpen: () => Swal.showLoading() });
 
-        // Búsqueda insensible a mayúsculas/minúsculas (ilike)
         const { data, error } = await sb
             .from('mascotas')
             .select('*')
             .ilike('nombre', `%${query}%`); 
 
-        Swal.close();
+        Swal.close(); // Cerramos el cargando
 
         if (error) throw error;
 
         if (data && data.length > 0) {
             cargarDatosEnFormulario(data[0]);
-            Swal.fire('Encontrado', `Se cargó a ${data[0].nombre}`, 'success');
+            // Quitamos la alerta de éxito para que sea más fluido, o pon un toast pequeño
+            // Swal.fire('Encontrado', `Se cargó a ${data[0].nombre}`, 'success');
         } else {
             Swal.fire('No encontrado', 'No hay mascotas con ese nombre. Puedes registrarla nueva.', 'info');
             limpiarFormulario(); 
-            document.getElementById('nombre').value = query; // Mantiene lo escrito para registrar rápido
+            document.getElementById('nombre').value = query; 
         }
 
     } catch (err) {
@@ -181,7 +175,6 @@ async function guardarMascota() {
     
     if(!nombre || !raza) return Swal.fire('Faltan datos', 'Nombre y Raza son obligatorios', 'warning');
 
-    // Objeto con los datos del formulario
     const datos = {
         nombre: nombre,
         raza: raza,
@@ -198,31 +191,27 @@ async function guardarMascota() {
     try {
         Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
 
-        // 1. Subir Foto (Si se seleccionó una nueva)
+        // Subir Foto
         const file = fotoInput.files[0];
         if (file) {
-            const fileName = `foto_${Date.now()}.jpg`; // Nombre único
-            
-            // Subir al bucket 'mascotas-fotos'
+            const fileName = `foto_${Date.now()}.jpg`;
             const { data: uploadData, error: uploadError } = await sb.storage
                 .from('mascotas-fotos') 
                 .upload(fileName, file);
             
             if (uploadError) throw uploadError;
 
-            // Obtener la URL pública
             const { data: publicUrlData } = sb.storage
                 .from('mascotas-fotos')
                 .getPublicUrl(fileName);
             
-            datos.foto_url = publicUrlData.publicUrl; // Guardamos la URL en la base de datos
+            datos.foto_url = publicUrlData.publicUrl;
         }
 
         let resultData;
 
-        // 2. Guardar en Base de Datos
+        // Guardar en BD
         if (currentPetId) {
-            // ACTUALIZAR (Si ya tiene ID)
             const { data, error } = await sb
                 .from('mascotas')
                 .update(datos)
@@ -231,7 +220,6 @@ async function guardarMascota() {
             if (error) throw error;
             resultData = data[0];
         } else {
-            // CREAR NUEVO (Si no tiene ID)
             const { data, error } = await sb
                 .from('mascotas')
                 .insert([datos])
@@ -240,7 +228,6 @@ async function guardarMascota() {
             resultData = data[0];
         }
 
-        // 3. Refrescar formulario con los datos guardados
         cargarDatosEnFormulario(resultData); 
         Swal.fire('¡Guardado!', 'El expediente se actualizó correctamente.', 'success');
 
@@ -303,23 +290,16 @@ function cargarDatosEnFormulario(p) {
     document.getElementById('btnDelete').style.display = 'inline-block';
     document.getElementById('nfcSection').style.display = 'block';
 
-    // Generar link corto para el grabador
-    // 1. Detectamos dónde estamos (ej. http://127.0.0.1:5500 o https://tu-web.com)
+    // --- CORRECCIÓN: GENERACIÓN DE LINK AUTOMÁTICA ---
+    // Detectamos la ruta actual del navegador para construir el link
     const urlBase = window.location.origin; 
-    
-    // 2. Detectamos en qué carpeta estamos (por si tienes la web en una subcarpeta)
-    // Quitamos 'admin.html' del final para quedarnos con la ruta raíz
     const path = window.location.pathname.replace('admin.html', '');
-    
-    // 3. Construimos el link final apuntando a 'perfil.html'
     const linkFinal = `${urlBase}${path}perfil.html?id=${p.id}`;
 
-    // 4. Lo mostramos en el input y en el texto
-    document.getElementById('shortLinkDisplay').innerText = linkFinal; // Si dejaste el <b>
-    
-    // Si ya cambiaste al <input> que te dije antes:
-    const inputLink = document.getElementById('shortLinkInput');
-    if(inputLink) inputLink.value = linkFinal;
+    // Lo ponemos en el input
+    if (shortLinkInput) {
+        shortLinkInput.value = linkFinal;
+    }
 }
 
 function limpiarFormulario() {
@@ -327,19 +307,17 @@ function limpiarFormulario() {
     document.querySelectorAll('input, textarea').forEach(i => i.value = '');
     document.getElementById('sexo').value = 'Macho';
     previewImg.src = "https://via.placeholder.com/300x300?text=Sin+Foto";
-    fotoInput.value = ""; // Limpiar input file
+    fotoInput.value = ""; 
     
     document.getElementById('btnDelete').style.display = 'none';
     document.getElementById('nfcSection').style.display = 'none';
-    shortLinkDisplay.innerText = '...';
+    
+    // Limpiar input de link
+    if (shortLinkInput) shortLinkInput.value = '';
 }
 
-// ==========================================
-// 6. CERRAR SESIÓN
-// ==========================================
+// CERRAR SESIÓN
 document.getElementById('logoutBtn').addEventListener('click', async () => {
-    // 1. Cerrar sesión en Supabase
     await sb.auth.signOut();
-    // 2. Redirigir al inicio
     window.location.href = 'index.html';
 });
