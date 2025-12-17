@@ -224,13 +224,13 @@ async function guardarMascota() {
         if (file) {
             const fileName = `foto_${Date.now()}.jpg`;
             const { data: uploadData, error: uploadError } = await sb.storage
-                .from('mascotas-fotos') 
+                .from('fotos') 
                 .upload(fileName, file);
             
             if (uploadError) throw uploadError;
 
             const { data: publicUrlData } = sb.storage
-                .from('mascotas-fotos')
+                .from('fotos')
                 .getPublicUrl(fileName);
             
             datos.foto_url = publicUrlData.publicUrl;
