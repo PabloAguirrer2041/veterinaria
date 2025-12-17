@@ -6,18 +6,36 @@
     <title>Panel Doctor - TuVet</title>
     
     <link rel="stylesheet" href="styles.css"> 
-    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        /* Estilo rápido para el nuevo botón rojo de salir */
+        .btn-danger-outline {
+            background: transparent;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-danger-outline:hover {
+            background: #ef4444;
+            color: white;
+        }
+    </style>
 </head>
 <body>
 
 <div class="container">
     
     <div class="header-row">
-        <h1>👨‍⚕️ Doctor · Gestión de Pacientes</h1>
-        <button id="logoutBtn" class="btn-secondary">Cerrar Sesión</button>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button onclick="window.location.href='index.html'" class="btn-secondary">← Volver al menú</button>
+            <h1 style="font-size: 1.5rem;">👨‍⚕️ Doctor · Gestión</h1>
+        </div>
+        <button id="logoutBtn" class="btn-danger-outline">Cerrar Sesión</button>
     </div>
 
     <div id="espStatus" class="status-badge disconnected">
@@ -30,7 +48,6 @@
     </div>
 
     <div class="card">
-        
         <div class="doctor-grid">
             
             <div class="form-column">
@@ -79,16 +96,16 @@
                 <label>Fotografía del Paciente</label>
                 <div class="photo-upload-zone" onclick="document.getElementById('fotoInput').click()">
                     <img id="previewImg" src="https://via.placeholder.com/300x300?text=Sin+Foto" alt="Foto Mascota">
-                    
                     <div class="upload-overlay">
                         <span class="upload-text">📸 Toca para cambiar foto</span>
                     </div>
-
                     <input type="file" id="fotoInput" accept="image/*" onchange="previewFile()">
                 </div>
             </div>
 
-        </div> <div class="full-width-section">
+        </div> 
+
+        <div class="full-width-section">
             <div class="input-group">
                 <label>🔒 Historial Médico / Notas Privadas</label>
                 <textarea id="historial" rows="4" placeholder="Solo visible para el doctor..."></textarea>
@@ -114,7 +131,8 @@
         <div class="nfc-section" id="nfcSection" style="display:none;">
             <hr>
             <h3>📡 Vincular Dije PawLinks</h3>
-            <p>Link listo para grabar: <b id="shortLinkDisplay">...</b></p>
+            <p>Link para grabar:</p>
+            <input type="text" id="shortLinkInput" class="link-input" readonly>
             <button onclick="enviarAProgramador()" class="btn-nfc">🖨️ Enviar orden al PawLinker</button>
         </div>
         
@@ -124,4 +142,6 @@
 <script src="admin.js"></script>
 
 </body>
+</html>
+
 </html>
