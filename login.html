@@ -1,55 +1,11 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Acceso Doctor - TuVet</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <link rel="stylesheet" href="styles.css">
-    <style>
-        body { display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #f1f5f9; }
-        .login-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        .login-logo { font-size: 50px; margin-bottom: 20px; }
-        .form-group { margin-bottom: 20px; text-align: left; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #475569; }
-        .form-group input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
-        .btn-login { width: 100%; padding: 15px; background-color: #0ea5a0; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 1.1rem; }
-        .btn-login:hover { background-color: #0d9488; }
-        .back-link { display: block; margin-top: 20px; color: #64748b; text-decoration: none; }
-    </style>
-</head>
-<body>
-
-<div class="login-card">
-    <div class="login-logo">👨‍⚕️</div>
-    <h2 style="margin-bottom: 5px; color: #0f172a;">Acceso Veterinario</h2>
-    <p style="color: #64748b; margin-bottom: 30px;">Ingresa tus credenciales</p>
-
-    <div class="form-group">
-        <label>Correo Electrónico</label>
-        <input type="email" id="email" placeholder="doctor@tuvet.com">
-    </div>
-
-    <div class="form-group">
-        <label>Contraseña</label>
-        <input type="password" id="password" placeholder="••••••••">
-    </div>
-
-    <button onclick="iniciarSesion()" class="btn-login">Entrar al Sistema</button>
-    <a href="index.html" class="back-link">← Volver al inicio</a>
-</div>
-
 <script>
-    // 1. CONFIGURACIÓN SUPABASE (La misma de siempre)
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
     const { createClient } = supabase;
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 2. FUNCIÓN LOGIN
     async function iniciarSesion() {
-        const email = document.getElementById('email').value;
+        const email = document.getElementById('email').value.trim(); // .trim() limpia espacios
         const password = document.getElementById('password').value;
 
         if (!email || !password) return Swal.fire('Error', 'Llena ambos campos', 'warning');
@@ -62,14 +18,32 @@
 
             if (error) throw error;
 
-            // Si es correcto, redirigir al panel
+            // --- LÓGICA DE ASIGNACIÓN DE VETERINARIA ---
+            let vetId = null; // Por defecto nulo
+
+            // Aquí definimos las reglas de tus doctores:
+            if (email.includes('@tuvet')) {
+                vetId = 1; // ID para TuVet
+            } else if (email.includes('@sanjuan')) {
+                vetId = 2; // ID para San Juan
+            } else if (email.includes('@beagle')) {
+                vetId = 3; // Ejemplo extra
+            } else {
+                // Si entra con un correo genérico (gmail, hotmail), 
+                // decidimos si le damos acceso o lo mandamos a una por defecto.
+                vetId = 1; // Por defecto a la 1 si no coincide
+            }
+
+            // Guardamos este ID en la sesión del navegador para usarlo en admin.html
+            sessionStorage.setItem('veterinaria_actual_id', vetId);
+            sessionStorage.setItem('veterinaria_email', email);
+
+            // Redirigir
             window.location.href = 'admin.html';
 
         } catch (error) {
+            console.error(error);
             Swal.fire('Error de Acceso', 'Correo o contraseña incorrectos', 'error');
         }
     }
 </script>
-
-</body>
-</html>
