@@ -145,34 +145,43 @@ function previewFile() {
 // ==========================================
 
 // --- BUSCAR (CON LÓGICA DE LISTA MÚLTIPLE) ---
+// --- BUSCAR (FILTRADO POR VETERINARIA) ---
 async function buscarMascota() {
     const query = document.getElementById('searchInput').value.trim();
     if (!query) return Swal.fire('Ojo', 'Escribe un nombre para buscar', 'info');
 
+    // 1. OBTENER ID DE LA VETERINARIA ACTUAL
+    const vetIdActual = sessionStorage.getItem('veterinaria_actual_id');
+
+    if (!vetIdActual) {
+        return Swal.fire('Error', 'No se detectó tu veterinaria. Recarga la página.', 'error');
+    }
+
     try {
         Swal.fire({ title: 'Buscando...', didOpen: () => Swal.showLoading() });
 
+        // 2. CONSULTA FILTRADA
         const { data, error } = await sb
             .from('mascotas')
             .select('*')
-            .ilike('nombre', `%${query}%`); 
+            .ilike('nombre', `%${query}%`)
+            .eq('veterinaria_id', vetIdActual); // <--- ESTA ES LA CLAVE: Solo mis perros
 
         Swal.close();
 
         if (error) throw error;
 
-        // CASO 0: NO SE ENCONTRÓ NADA
+        // CASO 0: NO SE ENCONTRÓ NADA (EN TU VETERINARIA)
         if (!data || data.length === 0) {
-            Swal.fire('No encontrado', 'No hay mascotas con ese nombre. Puedes registrarla nueva.', 'info');
+            Swal.fire('No encontrado', 'No tienes mascotas con ese nombre en esta clínica.', 'info');
             limpiarFormulario(); 
             document.getElementById('nombre').value = query; 
             return;
         }
 
-        // CASO 1: SOLO HAY UNO (Carga directa)
+        // CASO 1: SOLO HAY UNO
         if (data.length === 1) {
             cargarDatosEnFormulario(data[0]);
-            // Notificación pequeña tipo Toast
             const Toast = Swal.mixin({
                 toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
             });
@@ -180,9 +189,9 @@ async function buscarMascota() {
             return;
         }
 
-        // CASO 2: HAY VARIOS (Mostrar Modal con lista)
+        // CASO 2: HAY VARIOS
         if (data.length > 1) {
-            listaResultadosBusqueda = data; // Guardamos en variable global
+            listaResultadosBusqueda = data;
             mostrarModalSeleccion(data);
         }
 
