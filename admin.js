@@ -304,8 +304,22 @@ function cargarDatosEnFormulario(p) {
     document.getElementById('nfcSection').style.display = 'block';
 
     // Generar link corto para el grabador
-    const linkFinal = `https://tuapp.com/p?id=${p.id}`; 
-    shortLinkDisplay.innerText = linkFinal;
+    // 1. Detectamos dónde estamos (ej. http://127.0.0.1:5500 o https://tu-web.com)
+    const urlBase = window.location.origin; 
+    
+    // 2. Detectamos en qué carpeta estamos (por si tienes la web en una subcarpeta)
+    // Quitamos 'admin.html' del final para quedarnos con la ruta raíz
+    const path = window.location.pathname.replace('admin.html', '');
+    
+    // 3. Construimos el link final apuntando a 'perfil.html'
+    const linkFinal = `${urlBase}${path}perfil.html?id=${p.id}`;
+
+    // 4. Lo mostramos en el input y en el texto
+    document.getElementById('shortLinkDisplay').innerText = linkFinal; // Si dejaste el <b>
+    
+    // Si ya cambiaste al <input> que te dije antes:
+    const inputLink = document.getElementById('shortLinkInput');
+    if(inputLink) inputLink.value = linkFinal;
 }
 
 function limpiarFormulario() {
