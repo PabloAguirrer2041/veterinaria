@@ -4,23 +4,24 @@
 const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
 
+// Escribe aquí tu dominio real cuando lo tengas (ej. "https://tuvet.com"). 
+// Si lo dejas vacío "", detectará la dirección actual del navegador.
+const DOMINIO_OFICIAL = ""; 
+
 // Cliente Supabase (Usamos 'sb' para evitar conflictos)
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Variables Globales
 let currentPetId = null; 
+let listaResultadosBusqueda = []; // Variable para guardar la lista de perros encontrados
 const HEARTBEAT_INTERVAL = 3000; 
 const OFFLINE_THRESHOLD = 15000; 
 
-let currentPetId = null; 
-let listaResultadosBusqueda = []; // <--- NUEVA VARIABLE PARA GUARDAR LA LISTA
-
-// Elementos del DOM (Referencias actualizadas)
+// Elementos del DOM
 const statusDiv = document.getElementById('espStatus');
 const previewImg = document.getElementById('previewImg');
 const fotoInput = document.getElementById('fotoInput');
-// CORRECCIÓN: Ahora apuntamos al input, no al texto <b>
 const shortLinkInput = document.getElementById('shortLinkInput'); 
 
 // ==========================================
@@ -77,7 +78,6 @@ function updateStatusUI(isOnline) {
 }
 
 async function enviarAProgramador() {
-    // CORRECCIÓN: Leemos el valor de la cajita de texto (.value)
     const linkText = shortLinkInput.value;
 
     if (!linkText || !linkText.includes('http')) {
@@ -138,8 +138,7 @@ function previewFile() {
 // 4. LÓGICA DE DATOS (MASCOTAS)
 // ==========================================
 
-// BUSCAR
-// BUSCAR (MEJORADO CON LISTA DE SELECCIÓN)
+// --- BUSCAR (CON LÓGICA DE LISTA MÚLTIPLE) ---
 async function buscarMascota() {
     const query = document.getElementById('searchInput').value.trim();
     if (!query) return Swal.fire('Ojo', 'Escribe un nombre para buscar', 'info');
@@ -160,30 +159,30 @@ async function buscarMascota() {
         if (!data || data.length === 0) {
             Swal.fire('No encontrado', 'No hay mascotas con ese nombre. Puedes registrarla nueva.', 'info');
             limpiarFormulario(); 
-            document.getElementById('nombre').value = query;
+            document.getElementById('nombre').value = query; 
             return;
         }
 
-        // CASO 1: SOLO HAY UNO (Cargar directo)
+        // CASO 1: SOLO HAY UNO (Carga directa)
         if (data.length === 1) {
             cargarDatosEnFormulario(data[0]);
-            // Pequeña notificación visual (Toast) en lugar de alerta invasiva
+            // Notificación pequeña tipo Toast
             const Toast = Swal.mixin({
-                toast: true, position: 'top-end', showConfirmButton: false, timer: 3000
+                toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
             });
-            Toast.fire({ icon: 'success', title: `Se cargó a ${data[0].nombre}` });
+            Toast.fire({ icon: 'success', title: `Cargado: ${data[0].nombre}` });
             return;
         }
 
-        // CASO 2: HAY VARIOS (Mostrar lista "Slicer")
+        // CASO 2: HAY VARIOS (Mostrar Modal con lista)
         if (data.length > 1) {
-            listaResultadosBusqueda = data; // Guardamos los datos para usarlos al dar clic
+            listaResultadosBusqueda = data; // Guardamos en variable global
             mostrarModalSeleccion(data);
         }
 
     } catch (err) {
         console.error(err);
-        Swal.fire('Error', 'Fallo en la búsqueda', 'error');
+        Swal.fire('Error', 'Fallo en la búsqueda (Revisa conexión)', 'error');
     }
 }
 
@@ -280,7 +279,7 @@ async function eliminarMascota() {
 }
 
 // ==========================================
-// 5. UTILIDADES (HELPERS)
+// 5. UTILIDADES Y HELPERS
 // ==========================================
 
 function cargarDatosEnFormulario(p) {
@@ -309,13 +308,17 @@ function cargarDatosEnFormulario(p) {
     document.getElementById('btnDelete').style.display = 'inline-block';
     document.getElementById('nfcSection').style.display = 'block';
 
-    // --- CORRECCIÓN: GENERACIÓN DE LINK AUTOMÁTICA ---
-    // Detectamos la ruta actual del navegador para construir el link
-    const urlBase = window.location.origin; 
-    const path = window.location.pathname.replace('admin.html', '');
-    const linkFinal = `${urlBase}${path}perfil.html?id=${p.id}`;
+    // --- GENERACIÓN DE LINK AUTOMÁTICA ---
+    let urlBase = "";
+    if (DOMINIO_OFICIAL && DOMINIO_OFICIAL.length > 5) {
+        urlBase = DOMINIO_OFICIAL;
+    } else {
+        urlBase = window.location.href.split('/admin.html')[0];
+    }
+    
+    if (urlBase.endsWith('/')) urlBase = urlBase.slice(0, -1);
+    const linkFinal = `${urlBase}/perfil.html?id=${p.id}`;
 
-    // Lo ponemos en el input
     if (shortLinkInput) {
         shortLinkInput.value = linkFinal;
     }
@@ -331,27 +334,16 @@ function limpiarFormulario() {
     document.getElementById('btnDelete').style.display = 'none';
     document.getElementById('nfcSection').style.display = 'none';
     
-    // Limpiar input de link
     if (shortLinkInput) shortLinkInput.value = '';
 }
 
-// CERRAR SESIÓN
-document.getElementById('logoutBtn').addEventListener('click', async () => {
-    await sb.auth.signOut();
-    window.location.href = 'index.html';
-}
-// --- FUNCIONES AUXILIARES PARA BÚSQUEDA MÚLTIPLE ---
-
+// --- FUNCIONES PARA EL MODAL DE SELECCIÓN (LISTA) ---
 function mostrarModalSeleccion(mascotas) {
-    // 1. Construimos el HTML de la lista
     let htmlLista = '<div class="search-results-list">';
     
     mascotas.forEach((p, index) => {
-        // Si no tiene foto, usamos placeholder
         const img = p.foto_url || "https://via.placeholder.com/50?text=🐶";
-        
-        // Creamos la tarjeta clicable
-        // Al hacer clic, llamamos a 'seleccionarDeLista' con el número de índice (0, 1, 2...)
+        // IMPORTANTE: onclick llama a la función global seleccionarDeLista
         htmlLista += `
             <div class="pet-result-card" onclick="seleccionarDeLista(${index})">
                 <img src="${img}" class="pet-result-img">
@@ -362,24 +354,26 @@ function mostrarModalSeleccion(mascotas) {
             </div>
         `;
     });
-
     htmlLista += '</div>';
 
-    // 2. Mostramos la alerta con el HTML dentro
     Swal.fire({
         title: `Encontrados: ${mascotas.length}`,
         html: htmlLista,
-        showConfirmButton: false, // No hace falta botón, se selecciona con clic en la tarjeta
+        showConfirmButton: false,
         showCloseButton: true,
         width: '400px'
     });
 }
 
-// Esta función se ejecuta cuando das clic en una tarjetita
-function seleccionarDeLista(index) {
+// Hacemos esta función accesible globalmente (window) para que funcione en el HTML de SweetAlert
+window.seleccionarDeLista = function(index) {
     const perroSeleccionado = listaResultadosBusqueda[index];
-    Swal.close(); // Cerramos el modal
-    cargarDatosEnFormulario(perroSeleccionado); // Cargamos los datos
-}
+    Swal.close();
+    cargarDatosEnFormulario(perroSeleccionado);
+};
 
-);
+// CERRAR SESIÓN
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    window.location.href = 'index.html';
+});
