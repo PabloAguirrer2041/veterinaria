@@ -62,14 +62,20 @@
 
             if (error) throw error;
 
-            // B) BUSCADA INTELIGENTE: Traemos la lista de dominios de la BD
-            // Solo necesitamos el ID y el texto clave (ej: 'lares', 'tuvet')
+          
+            // B) BUSCADA INTELIGENTE
             const { data: listaVets, error: errorVet } = await sb
                 .from('veterinarias')
                 .select('id, dominio_correo');
 
+            // --- DEBUG: MIRA ESTO EN LA CONSOLA ---
+            console.log("📋 Lista descargada de Supabase:", listaVets); 
+            console.log("📧 Buscando match para:", email);
+            // --------------------------------------
+
             if (errorVet) throw errorVet;
 
+            // ... (resto del código igual) ...
             // C) LÓGICA DE MATCH: Buscamos qué dominio está dentro del email
             // Ejemplo: si email es "juan@lares.com" y en la lista hay "lares", hace match.
             const vetEncontrada = listaVets.find(vet => 
