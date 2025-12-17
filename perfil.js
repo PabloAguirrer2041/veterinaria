@@ -10,18 +10,17 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 document.addEventListener('DOMContentLoaded', cargarPerfil);
 
 async function cargarPerfil() {
-    // 1. Obtener ID de la URL (?id=5)
+    // 1. Obtener ID de la URL
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
 
     if (!id) {
-        document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px;'>⚠️ ID no especificado</h2>";
+        mostrarError("⚠️ ID no especificado en el enlace.");
         return;
     }
 
     try {
         // 2. Buscar Perro + Veterinaria (JOIN)
-        // Pedimos los datos del perro Y los datos de la tabla 'veterinarias' conectada
         const { data: p, error } = await sb
             .from('mascotas')
             .select(`
@@ -34,66 +33,92 @@ async function cargarPerfil() {
         if (error || !p) throw new Error("Mascota no encontrada");
 
         // 3. --- PINTAR LA VETERINARIA (CAMALEÓN) ---
-        const vet = p.veterinarias;
-        
-        // Colores Dinámicos
-        document.documentElement.style.setProperty('--color-vet', vet.color_tema || '#000');
-        
-        // Header
-        if (vet.logo_url) {
-            document.getElementById('logoVet').src = vet.logo_url;
-            document.getElementById('headerVet').style.display = 'flex';
+        const vet = p.veterinarias || {}; // Evita error si no tiene vet asignada
+
+        // Color del Tema
+        if (vet.color_tema) {
+            document.documentElement.style.setProperty('--color-vet', vet.color_tema);
         }
-        document.getElementById('nombreVet').innerText = vet.nombre;
+
+        // Header (Logo y Nombre) - IDs ACTUALIZADOS
+        if (vet.logo_url) {
+            const logoImg = document.getElementById('vetLogo');
+            if(logoImg) logoImg.src = vet.logo_url;
+            
+            const badge = document.getElementById('vetBadge');
+            if(badge) badge.style.display = 'flex';
+        }
         
-        // Footer y Links
-        document.getElementById('footerVetName').innerText = vet.nombre;
-        if (vet.sitio_web) {
-            document.getElementById('linkVetSite').href = vet.sitio_web;
+        const vetNameSpan = document.getElementById('vetName');
+        if(vetNameSpan) vetNameSpan.innerText = vet.nombre || 'Veterinaria';
+
+        // Footer (Link al sitio)
+        const footerVet = document.getElementById('footerVet');
+        if(footerVet) footerVet.innerText = vet.nombre || 'TuVet';
+        
+        const linkVet = document.getElementById('linkVet');
+        if (linkVet && vet.sitio_web) {
+            linkVet.href = vet.sitio_web;
         }
 
         // 4. --- PINTAR AL PERRO ---
-        document.getElementById('petName').innerText = p.nombre;
-        document.getElementById('petBreed').innerText = `${p.raza} · ${p.sexo} · ${p.edad} años`;
+        document.getElementById('petName').innerText = p.nombre || 'Sin Nombre';
         
+        // Detalles combinados (Raza + Sexo + Edad)
+        const detalles = `${p.raza || ''} · ${p.sexo || ''} · ${p.edad || '?'} años`;
+        document.getElementById('petDetails').innerText = detalles;
+        
+        // Foto
+        const fotoElement = document.getElementById('petPhoto');
         if (p.foto_url) {
-            document.getElementById('petPhoto').src = p.foto_url;
+            fotoElement.src = p.foto_url;
         } else {
-            document.getElementById('petPhoto').src = "https://via.placeholder.com/500?text=Sin+Foto";
+            fotoElement.src = "https://via.placeholder.com/300?text=Sin+Foto";
         }
 
-        // Notas
-        document.getElementById('petNotes').innerText = p.notas_publicas || "Sin información adicional.";
+        // Notas Públicas
+        const notasElement = document.getElementById('petNotes');
+        if(notasElement) notasElement.innerText = p.notas_publicas || "Sin información adicional.";
 
-        // 5. --- BOTONES DE CONTACTO (SEGURIDAD) ---
-        // Solo mostramos botones si el dueño autorizó (contacto_publico)
+        // 5. --- BOTONES DE CONTACTO ---
         if (p.contacto_publico) {
-            document.getElementById('contactButtons').style.display = 'block';
+            const contactActions = document.getElementById('contactActions');
+            if(contactActions) contactActions.style.display = 'block';
             
             // Botón Llamar
-            const btnCall = document.getElementById('btnCallOwner');
-            btnCall.href = `tel:${p.telefono}`;
-            btnCall.innerText = `📞 Llamar a ${p.duenio.split(' ')[0]}`;
+            const btnCall = document.getElementById('btnCall');
+            if(btnCall) {
+                btnCall.href = `tel:${p.telefono}`;
+                // Intentamos sacar el nombre corto del dueño
+                const nombreDuenio = (p.duenio || 'Dueño').split(' ')[0];
+                btnCall.innerHTML = `<i class="fas fa-phone"></i> Llamar a ${nombreDuenio}`;
+            }
 
-            // Botón WhatsApp (Opcional, generamos link directo)
-            // Limpiamos el numero de espacios o guiones
-            const cleanPhone = p.telefono.replace(/\D/g,'');
-            if (cleanPhone.length >= 10) {
-                const btnWsp = document.getElementById('btnWhatsapp');
-                btnWsp.style.display = 'block';
+            // Botón WhatsApp
+            const cleanPhone = (p.telefono || '').replace(/\D/g,'');
+            const btnWsp = document.getElementById('btnWsp');
+            if (cleanPhone.length >= 10 && btnWsp) {
                 btnWsp.href = `https://wa.me/${cleanPhone}?text=Hola, encontré a tu mascota ${p.nombre}`;
+            } else if(btnWsp) {
+                btnWsp.style.display = 'none'; // Ocultar si no hay número válido
             }
         } else {
-            // Si es privado, mostrar mensaje de "Llevar al refugio"
-            document.getElementById('petNotes').innerText += "\n\n⚠️ Datos de contacto privados. Por favor escanea en una clínica veterinaria o lleva al refugio más cercano.";
+            // Si es privado
+            if(notasElement) notasElement.innerText += "\n\n⚠️ Datos de contacto privados. Por favor escanea en una clínica veterinaria o lleva al refugio más cercano.";
         }
 
-        // Quitar pantalla de carga
-        document.getElementById('loadingScreen').style.display = 'none';
+        // OCULTAR CARGA (Usando el ID correcto 'loading')
+        const loading = document.getElementById('loading');
+        if(loading) loading.style.display = 'none';
 
     } catch (err) {
         console.error(err);
-        document.body.innerHTML = "<h2 style='text-align:center; margin-top:50px;'>❌ Perfil no encontrado o inactivo</h2>";
-        document.getElementById('loadingScreen').style.display = 'none';
+        mostrarError("❌ Perfil no encontrado o inactivo");
     }
+}
+
+function mostrarError(mensaje) {
+    document.body.innerHTML = `<div style='text-align:center; margin-top:50px; color:#444;'><h2>${mensaje}</h2></div>`;
+    const loading = document.getElementById('loading');
+    if(loading) loading.style.display = 'none';
 }
