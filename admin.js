@@ -6,7 +6,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 // Escribe aquí tu dominio real cuando lo tengas (ej. "https://tuvet.com"). 
 // Si lo dejas vacío "", detectará la dirección actual del navegador.
-const DOMINIO_OFICIAL = ""; 
+const DOMINIO_OFICIAL = "https://www.tuvet.org/"; 
 
 // Cliente Supabase (Usamos 'sb' para evitar conflictos)
 const { createClient } = supabase;
