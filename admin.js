@@ -39,6 +39,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     console.log("✅ Acceso Autorizado:", session.user.email);
 
+    // --- MOSTRAR CORREO EN LA CABECERA ---
+    const labelEmail = document.getElementById('headerEmail');
+    if (labelEmail) {
+        labelEmail.innerText = ` · ${session.user.email}`;
+    }
+
     // Iniciar monitoreo del ESP32
     checkProgrammerStatus();
     setInterval(checkProgrammerStatus, HEARTBEAT_INTERVAL);
@@ -186,7 +192,7 @@ async function buscarMascota() {
     }
 }
 
-// GUARDAR / ACTUALIZAR (MODIFICADO PARA MULTI-VETERINARIA)
+// GUARDAR / ACTUALIZAR (CON LÓGICA MULTI-VETERINARIA Y CORRECCIÓN DE BUCKET)
 async function guardarMascota() {
     const nombre = document.getElementById('nombre').value;
     const raza = document.getElementById('raza').value;
@@ -212,23 +218,26 @@ async function guardarMascota() {
         notas_publicas: document.getElementById('notasPublicas').value,
         contacto_publico: document.getElementById('publicContact').checked,
         
-        // 2. AQUI AÑADIMOS EL ID AUTOMÁTICO
+        // 2. AQUÍ AÑADIMOS EL ID AUTOMÁTICO
         veterinaria_id: parseInt(vetIdLogueado)
     };
 
     try {
         Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
 
-        // Subir Foto
+        // Subir Foto (BUCKET CORREGIDO A 'fotos')
         const file = fotoInput.files[0];
         if (file) {
             const fileName = `foto_${Date.now()}.jpg`;
+            
+            // Subir al bucket 'fotos'
             const { data: uploadData, error: uploadError } = await sb.storage
                 .from('fotos') 
                 .upload(fileName, file);
             
             if (uploadError) throw uploadError;
 
+            // Obtener URL del bucket 'fotos'
             const { data: publicUrlData } = sb.storage
                 .from('fotos')
                 .getPublicUrl(fileName);

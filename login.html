@@ -40,51 +40,59 @@
     <a href="index.html" class="back-link">← Volver al inicio</a>
 </div>
 <script>
+    // 1. CONFIGURACIÓN SUPABASE
     const SUPABASE_URL = "https://uqtnllwlyxzfvxukvxrb.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdG5sbHdseXh6ZnZ4dWt2eHJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTc3MjUsImV4cCI6MjA3NDQzMzcyNX0.nHfPuc-LCwGymKqhSRSIp9lmpQLKK53M6eqUP7QepUU";
     const { createClient } = supabase;
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // 2. FUNCIÓN LOGIN DINÁMICA
     async function iniciarSesion() {
-        const email = document.getElementById('email').value.trim(); // .trim() limpia espacios
+        let email = document.getElementById('email').value.trim().toLowerCase();
         const password = document.getElementById('password').value;
 
         if (!email || !password) return Swal.fire('Error', 'Llena ambos campos', 'warning');
 
         try {
-            const { data, error } = await sb.auth.signInWithPassword({
+            // A) Autenticar usuario
+            const { error } = await sb.auth.signInWithPassword({
                 email: email,
                 password: password
             });
 
             if (error) throw error;
 
-            // --- LÓGICA DE ASIGNACIÓN DE VETERINARIA ---
-            let vetId = null; // Por defecto nulo
+            // B) BUSCADA INTELIGENTE: Traemos la lista de dominios de la BD
+            // Solo necesitamos el ID y el texto clave (ej: 'lares', 'tuvet')
+            const { data: listaVets, error: errorVet } = await sb
+                .from('veterinarias')
+                .select('id, dominio_correo');
 
-            // Aquí definimos las reglas de tus doctores:
-            if (email.includes('@tuvet')) {
-                vetId = 1; // ID para TuVet
-            } else if (email.includes('@sanjuan')) {
-                vetId = 2; // ID para San Juan
-            } else if (email.includes('@beagle')) {
-                vetId = 3; // Ejemplo extra
+            if (errorVet) throw errorVet;
+
+            // C) LÓGICA DE MATCH: Buscamos qué dominio está dentro del email
+            // Ejemplo: si email es "juan@lares.com" y en la lista hay "lares", hace match.
+            const vetEncontrada = listaVets.find(vet => 
+                vet.dominio_correo && email.includes(vet.dominio_correo.toLowerCase())
+            );
+
+            let vetIdAsignado = 1; // ID por defecto (TuVet) si no encuentra nada
+
+            if (vetEncontrada) {
+                vetIdAsignado = vetEncontrada.id;
+                console.log(`✅ Detectada veterinaria: ID ${vetIdAsignado} (${vetEncontrada.dominio_correo})`);
             } else {
-                // Si entra con un correo genérico (gmail, hotmail), 
-                // decidimos si le damos acceso o lo mandamos a una por defecto.
-                vetId = 1; // Por defecto a la 1 si no coincide
+                console.warn("⚠️ No se detectó dominio conocido, asignando veterinaria por defecto (ID 1)");
             }
 
-            // Guardamos este ID en la sesión del navegador para usarlo en admin.html
-            sessionStorage.setItem('veterinaria_actual_id', vetId);
+            // D) Guardar y Redirigir
+            sessionStorage.setItem('veterinaria_actual_id', vetIdAsignado);
             sessionStorage.setItem('veterinaria_email', email);
-
-            // Redirigir
             window.location.href = 'admin.html';
 
         } catch (error) {
             console.error(error);
-            Swal.fire('Error de Acceso', 'Correo o contraseña incorrectos', 'error');
+            Swal.fire('Error de Acceso', 'Verifica tus credenciales', 'error');
         }
     }
 </script>

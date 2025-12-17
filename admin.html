@@ -10,7 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
-        /* Estilo rápido para el nuevo botón rojo de salir */
+        /* Estilo rápido para el botón rojo de salir */
         .btn-danger-outline {
             background: transparent;
             border: 1px solid #ef4444;
@@ -33,7 +33,10 @@
     <div class="header-row">
         <div style="display: flex; align-items: center; gap: 15px;">
             <button onclick="window.location.href='index.html'" class="btn-secondary">← Volver al menú</button>
-            <h1 style="font-size: 1.5rem;">👨‍⚕️ Doctor · Gestión</h1>
+            <h1 style="font-size: 1.5rem;">
+                👨‍⚕️ Doctor · Gestión 
+                <span id="headerEmail" style="font-size: 1rem; color: #64748b; font-weight: normal; margin-left: 10px;"></span>
+            </h1>
         </div>
         <button id="logoutBtn" class="btn-danger-outline">Cerrar Sesión</button>
     </div>
@@ -142,6 +145,4 @@
 <script src="admin.js"></script>
 
 </body>
-</html>
-
 </html>
