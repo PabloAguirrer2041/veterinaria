@@ -186,12 +186,19 @@ async function buscarMascota() {
     }
 }
 
-// GUARDAR / ACTUALIZAR
+// GUARDAR / ACTUALIZAR (MODIFICADO PARA MULTI-VETERINARIA)
 async function guardarMascota() {
     const nombre = document.getElementById('nombre').value;
     const raza = document.getElementById('raza').value;
     
     if(!nombre || !raza) return Swal.fire('Faltan datos', 'Nombre y Raza son obligatorios', 'warning');
+
+    // 1. RECUPERAMOS EL ID DE LA VETERINARIA DEL LOGIN
+    const vetIdLogueado = sessionStorage.getItem('veterinaria_actual_id');
+
+    if (!vetIdLogueado) {
+        return Swal.fire('Error de Sesión', 'No se detectó la veterinaria. Por favor relogueate (Sal y vuelve a entrar).', 'error');
+    }
 
     const datos = {
         nombre: nombre,
@@ -203,7 +210,10 @@ async function guardarMascota() {
         email_duenio: document.getElementById('email').value,
         historial: document.getElementById('historial').value,
         notas_publicas: document.getElementById('notasPublicas').value,
-        contacto_publico: document.getElementById('publicContact').checked
+        contacto_publico: document.getElementById('publicContact').checked,
+        
+        // 2. AQUI AÑADIMOS EL ID AUTOMÁTICO
+        veterinaria_id: parseInt(vetIdLogueado)
     };
 
     try {
@@ -247,7 +257,7 @@ async function guardarMascota() {
         }
 
         cargarDatosEnFormulario(resultData); 
-        Swal.fire('¡Guardado!', 'El expediente se actualizó correctamente.', 'success');
+        Swal.fire('¡Guardado!', `Expediente actualizado correctamente. (Vinculado a Vet ID: ${vetIdLogueado})`, 'success');
 
     } catch (err) {
         console.error(err);
@@ -374,6 +384,10 @@ window.seleccionarDeLista = function(index) {
 
 // CERRAR SESIÓN
 document.getElementById('logoutBtn').addEventListener('click', async () => {
+    // Limpiamos también el session storage
+    sessionStorage.removeItem('veterinaria_actual_id');
+    sessionStorage.removeItem('veterinaria_email');
+    
     await sb.auth.signOut();
     window.location.href = 'index.html';
 });
