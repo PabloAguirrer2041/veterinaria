@@ -13,6 +13,9 @@ let currentPetId = null;
 const HEARTBEAT_INTERVAL = 3000; 
 const OFFLINE_THRESHOLD = 15000; 
 
+let currentPetId = null; 
+let listaResultadosBusqueda = []; // <--- NUEVA VARIABLE PARA GUARDAR LA LISTA
+
 // Elementos del DOM (Referencias actualizadas)
 const statusDiv = document.getElementById('espStatus');
 const previewImg = document.getElementById('previewImg');
@@ -136,6 +139,7 @@ function previewFile() {
 // ==========================================
 
 // BUSCAR
+// BUSCAR (MEJORADO CON LISTA DE SELECCIÓN)
 async function buscarMascota() {
     const query = document.getElementById('searchInput').value.trim();
     if (!query) return Swal.fire('Ojo', 'Escribe un nombre para buscar', 'info');
@@ -148,23 +152,38 @@ async function buscarMascota() {
             .select('*')
             .ilike('nombre', `%${query}%`); 
 
-        Swal.close(); // Cerramos el cargando
+        Swal.close();
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
-            cargarDatosEnFormulario(data[0]);
-            // Quitamos la alerta de éxito para que sea más fluido, o pon un toast pequeño
-            // Swal.fire('Encontrado', `Se cargó a ${data[0].nombre}`, 'success');
-        } else {
+        // CASO 0: NO SE ENCONTRÓ NADA
+        if (!data || data.length === 0) {
             Swal.fire('No encontrado', 'No hay mascotas con ese nombre. Puedes registrarla nueva.', 'info');
             limpiarFormulario(); 
-            document.getElementById('nombre').value = query; 
+            document.getElementById('nombre').value = query;
+            return;
+        }
+
+        // CASO 1: SOLO HAY UNO (Cargar directo)
+        if (data.length === 1) {
+            cargarDatosEnFormulario(data[0]);
+            // Pequeña notificación visual (Toast) en lugar de alerta invasiva
+            const Toast = Swal.mixin({
+                toast: true, position: 'top-end', showConfirmButton: false, timer: 3000
+            });
+            Toast.fire({ icon: 'success', title: `Se cargó a ${data[0].nombre}` });
+            return;
+        }
+
+        // CASO 2: HAY VARIOS (Mostrar lista "Slicer")
+        if (data.length > 1) {
+            listaResultadosBusqueda = data; // Guardamos los datos para usarlos al dar clic
+            mostrarModalSeleccion(data);
         }
 
     } catch (err) {
         console.error(err);
-        Swal.fire('Error', 'Fallo en la búsqueda (Revisa conexión)', 'error');
+        Swal.fire('Error', 'Fallo en la búsqueda', 'error');
     }
 }
 
@@ -320,4 +339,47 @@ function limpiarFormulario() {
 document.getElementById('logoutBtn').addEventListener('click', async () => {
     await sb.auth.signOut();
     window.location.href = 'index.html';
-});
+}
+// --- FUNCIONES AUXILIARES PARA BÚSQUEDA MÚLTIPLE ---
+
+function mostrarModalSeleccion(mascotas) {
+    // 1. Construimos el HTML de la lista
+    let htmlLista = '<div class="search-results-list">';
+    
+    mascotas.forEach((p, index) => {
+        // Si no tiene foto, usamos placeholder
+        const img = p.foto_url || "https://via.placeholder.com/50?text=🐶";
+        
+        // Creamos la tarjeta clicable
+        // Al hacer clic, llamamos a 'seleccionarDeLista' con el número de índice (0, 1, 2...)
+        htmlLista += `
+            <div class="pet-result-card" onclick="seleccionarDeLista(${index})">
+                <img src="${img}" class="pet-result-img">
+                <div class="pet-result-info">
+                    <h4>${p.nombre}</h4>
+                    <p>Dueño: ${p.duenio || 'No registrado'}</p>
+                </div>
+            </div>
+        `;
+    });
+
+    htmlLista += '</div>';
+
+    // 2. Mostramos la alerta con el HTML dentro
+    Swal.fire({
+        title: `Encontrados: ${mascotas.length}`,
+        html: htmlLista,
+        showConfirmButton: false, // No hace falta botón, se selecciona con clic en la tarjeta
+        showCloseButton: true,
+        width: '400px'
+    });
+}
+
+// Esta función se ejecuta cuando das clic en una tarjetita
+function seleccionarDeLista(index) {
+    const perroSeleccionado = listaResultadosBusqueda[index];
+    Swal.close(); // Cerramos el modal
+    cargarDatosEnFormulario(perroSeleccionado); // Cargamos los datos
+}
+
+);
